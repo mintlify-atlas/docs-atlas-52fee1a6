@@ -1,0 +1,134 @@
+---
+title: 'YellowTaxiData'
+description: 'Main class for processing NYC Yellow Taxi trip data'
+---
+
+## Overview
+
+The `YellowTaxiData` class provides a complete pipeline for importing, cleaning, analyzing, and exporting NYC Yellow Taxi trip data. It downloads Parquet files from the NYC TLC dataset, performs data quality checks, generates metrics, and exports results in multiple formats.
+
+## Constructor
+
+```python
+YellowTaxiData(start_date, end_date)
+```
+
+Initializes a new instance of the YellowTaxiData class with the specified date range.
+
+<ParamField path="start_date" type="str" required>
+  Start date for data analysis in 'YYYY-MM-DD' format (e.g., '2022-01-01')
+</ParamField>
+
+<ParamField path="end_date" type="str" required>
+  End date for data analysis in 'YYYY-MM-DD' format (e.g., '2022-03-31')
+</ParamField>
+
+### Class Attributes
+
+After initialization, the following attributes are available:
+
+<ResponseField name="start_date" type="str">
+  The start date of the analysis period
+</ResponseField>
+
+<ResponseField name="end_date" type="str">
+  The end date of the analysis period
+</ResponseField>
+
+<ResponseField name="dates_list" type="list">
+  List of month strings in 'YYYY-MM' format generated from start_date to end_date
+</ResponseField>
+
+<ResponseField name="end_date_weeks" type="DatetimeIndex">
+  Weekly date range from start_date to end_date (ending on Sundays)
+</ResponseField>
+
+<ResponseField name="urls_list" type="list">
+  List of URLs pointing to NYC TLC Parquet files for each month in the date range
+</ResponseField>
+
+<ResponseField name="data" type="DataFrame">
+  Main DataFrame containing the raw and processed taxi trip data
+</ResponseField>
+
+<ResponseField name="weeks_ranges" type="DataFrame">
+  DataFrame for storing weekly date ranges (initialized as empty)
+</ResponseField>
+
+<ResponseField name="months_ranges" type="DataFrame">
+  DataFrame for storing monthly date ranges (initialized as empty)
+</ResponseField>
+
+<ResponseField name="jfk_df" type="DataFrame">
+  DataFrame containing metrics for JFK airport trips (RatecodeID = 2)
+</ResponseField>
+
+<ResponseField name="regular_df" type="DataFrame">
+  DataFrame containing metrics for regular/standard rate trips (RatecodeID = 1)
+</ResponseField>
+
+<ResponseField name="other_df" type="DataFrame">
+  DataFrame containing metrics for all other rate codes
+</ResponseField>
+
+<ResponseField name="csv_df" type="DataFrame">
+  DataFrame containing weekly aggregated metrics for CSV export
+</ResponseField>
+
+## Methods
+
+The class provides the following methods organized by functionality:
+
+### Data Import and Cleaning
+
+- **`import_data()`** - Downloads and imports Parquet files from NYC TLC dataset
+- **`clean_data()`** - Applies data quality filters and removes invalid records
+- **`add_more_columns()`** - Adds derived date columns for analysis
+
+### Metrics Generation
+
+- **`generate_week_metrics()`** - Calculates weekly aggregated statistics
+- **`generate_month_metrics()`** - Generates monthly metrics by rate code and day type
+- **`format_data()`** - Formats and prepares data for export
+
+### Data Export
+
+- **`export_data()`** - Exports all processed data to files
+- **`export_csv_data()`** - Exports weekly metrics to CSV format
+- **`export_excel_data()`** - Exports monthly metrics to Excel format with multiple sheets
+
+## Usage Example
+
+Here's a complete example from the source code:
+
+```python
+import time
+
+# Initialize the YellowTaxiData object with date range
+yellow_taxi_data = YellowTaxiData(start_date='2022-01-01', end_date='2022-03-31')
+
+# Import data from NYC TLC dataset
+yellow_taxi_data.import_data()
+
+# Clean and filter data
+yellow_taxi_data.clean_data()
+
+# Add derived columns for analysis
+yellow_taxi_data.add_more_columns()
+
+# Generate weekly metrics
+yellow_taxi_data.generate_week_metrics()
+
+# Generate monthly metrics by rate code
+yellow_taxi_data.generate_month_metrics()
+
+# Format data for export
+yellow_taxi_data.format_data()
+
+# Export results to CSV and Excel
+yellow_taxi_data.export_data()
+```
+
+<Note>
+  All DataFrames (data, jfk_df, regular_df, other_df, csv_df) are initialized as empty pandas DataFrames and populated by calling the respective methods in sequence.
+</Note>

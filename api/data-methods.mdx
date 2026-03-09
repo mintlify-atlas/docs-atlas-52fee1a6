@@ -1,0 +1,428 @@
+---
+title: 'Data Processing Methods'
+description: 'Methods for importing, cleaning, and transforming Yellow Taxi data'
+---
+
+## import_data()
+
+Downloads and imports Yellow Taxi trip data from NYC TLC Parquet files.
+
+```python
+def import_data(self)
+```
+
+### Description
+
+This method reads Parquet files from the URLs in `self.urls_list`, concatenates them into a single DataFrame, filters to keep only necessary columns, and sets a multi-level index.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value (modifies `self.data` in place).
+
+### Side Effects
+
+- **Modifies `self.data`**: Populates with imported trip data
+- **Filters columns**: Keeps only `tpep_pickup_datetime`, `tpep_dropoff_datetime`, `passenger_count`, `trip_distance`, `RatecodeID`, and `total_amount`
+- **Sets index**: Creates multi-level index on `tpep_pickup_datetime`, `tpep_dropoff_datetime`, and `RatecodeID` (columns are not dropped)
+
+### Implementation Details
+
+From source/main.py:24-36
+
+```python
+def import_data(self):
+    dataframes_list = [
+        pd.read_parquet(
+            path=url,
+            engine='pyarrow'
+        ) for url in self.urls_list
+    ]
+
+    self.data = pd.concat(dataframes_list, ignore_index=True)
+    self.data = self.data[['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'passenger_count', 'trip_distance',
+                           'RatecodeID','total_amount']] # Filter columns, only necessary columns
+    self.data.set_index(['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'RatecodeID'],
+                        inplace=True, drop=False)
+```
+
+<Note>
+  This method uses PyArrow engine for efficient Parquet file reading. Ensure PyArrow is installed in your environment.
+</Note>
+
+---
+
+## clean_data()
+
+Applies comprehensive data quality filters to remove invalid and outlier records.
+
+```python
+def clean_data(self)
+```
+
+### Description
+
+Performs multiple data cleaning operations including removing duplicates, handling missing values, filtering by date range, validating trip times and speeds, and ensuring positive values for key metrics.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value (modifies `self.data` in place).
+
+### Side Effects
+
+- **Modifies `self.data`**: Filters rows based on multiple quality checks
+- **Removes duplicates**: Drops duplicate rows
+- **Removes null values**: Drops rows with missing pickup/dropoff times or passenger count
+- **Filters by date range**: Keeps only trips within `start_date` and `end_date`
+
+### Data Quality Filters
+
+The method applies the following filters:
+
+1. **Removes duplicates**: Ensures unique trip records
+2. **Null values**: Drops rows missing pickup time, dropoff time, or passenger count
+3. **Date range**: Pickup &gt;= start_date AND dropoff &lt;= end_date
+4. **Valid trip duration**: Dropoff time must be after pickup time
+5. **Minimum duration**: Trip duration must be &gt;= 60 seconds
+6. **Speed limit**: Average speed must be &lt;= 100 mph (160 km/h)
+7. **Positive distance**: Trip distance must be &gt; 0
+8. **Valid amount**: Total amount must be &gt; 0 and &lt;= $5,000
+9. **Valid passenger count**: Passenger count must be &gt; 0
+
+### Implementation Details
+
+From source/main.py:39-63
+
+```python
+def clean_data(self):
+    self.data.drop_duplicates(inplace=True)
+    self.data.dropna(subset=['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'passenger_count'], inplace=True)
+
+    self.data = self.data[
+        (self.data['tpep_pickup_datetime'] >= self.start_date) &
+        (self.data['tpep_dropoff_datetime'] <= self.end_date)
+    ]
+
+    self.data = self.data[self.data['tpep_dropoff_datetime'] > self.data['tpep_pickup_datetime']]
+
+    self.data = self.data[
+        (self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']).dt.total_seconds() >= 60
+    ]
+
+    #100mph = 160km/h
+    self.data = self.data[
+        (self.data['trip_distance']) /
+        ((self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']).dt.total_seconds() / 3600) <= 100
+    ]
+
+    self.data = self.data[self.data['trip_distance'] > 0]
+    self.data = self.data[(self.data['total_amount'] > 0) & (self.data['total_amount'] <= 5000)]
+
+    self.data = self.data[self.data['passenger_count'] > 0]
+```
+
+<Note>
+  The speed limit filter (100 mph) helps remove unrealistic trips that may be data entry errors or system glitches.
+</Note>
+
+---
+
+## add_more_columns()
+
+Adds derived date and time columns for temporal analysis.
+
+```python
+def add_more_columns(self)
+```
+
+### Description
+
+Creates additional columns from the dropoff datetime for grouping and aggregation purposes, including year-month, year-week, and date components.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value (modifies `self.data` in place).
+
+### Side Effects
+
+Adds the following columns to `self.data`:
+
+- **`year_month`**: Format 'YYYY-MM' (e.g., '2022-01')
+- **`year_dt`**: Year as string (e.g., '2022')
+- **`week_dt`**: ISO week number zero-padded to 3 digits (e.g., '001', '052')
+- **`year_week`**: Format 'YYYY-WWW' (e.g., '2022-001')
+- **`year_month_day`**: Format 'YYYY-MM-DD' (e.g., '2022-01-15')
+
+### Implementation Details
+
+From source/main.py:66-71
+
+```python
+def add_more_columns(self):
+    self.data['year_month'] = self.data['tpep_dropoff_datetime'].dt.strftime('%Y-%m')
+    self.data['year_dt'] = self.data['tpep_dropoff_datetime'].dt.year.astype(str)
+    self.data['week_dt'] = self.data['tpep_dropoff_datetime'].dt.isocalendar().week.astype(str).str.zfill(3)
+    self.data['year_week'] = self.data['year_dt'].str.cat(self.data['week_dt'], sep='-')
+    self.data['year_month_day'] = self.data['tpep_dropoff_datetime'].dt.strftime('%Y-%m-%d')
+```
+
+---
+
+## generate_week_metrics()
+
+Generates weekly aggregated statistics and percentage variations.
+
+```python
+def generate_week_metrics(self)
+```
+
+### Description
+
+Calculates trip duration, then aggregates data by week to compute minimum, maximum, and mean values for trip time, distance, and amount. Also calculates week-over-week percentage variation in total services.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value (modifies `self.csv_df` in place).
+
+### Side Effects
+
+- **Adds columns to `self.data`**: 
+  - `trip_time`: Timedelta between dropoff and pickup
+  - `trip_time_in_seconds`: Trip duration in seconds
+- **Populates `self.csv_df`**: DataFrame with weekly aggregated metrics
+
+### Output Columns
+
+The `csv_df` DataFrame contains:
+
+<ResponseField name="year_week" type="str">
+  Week identifier in 'YYYY-WWW' format
+</ResponseField>
+
+<ResponseField name="min_trip_time" type="float">
+  Minimum trip time in seconds for the week
+</ResponseField>
+
+<ResponseField name="max_trip_time" type="float">
+  Maximum trip time in seconds for the week
+</ResponseField>
+
+<ResponseField name="mean_trip_time" type="float">
+  Average trip time in seconds for the week
+</ResponseField>
+
+<ResponseField name="min_trip_distance" type="float">
+  Minimum trip distance in miles for the week
+</ResponseField>
+
+<ResponseField name="max_trip_distance" type="float">
+  Maximum trip distance in miles for the week
+</ResponseField>
+
+<ResponseField name="mean_trip_distance" type="float">
+  Average trip distance in miles for the week
+</ResponseField>
+
+<ResponseField name="min_trip_amount" type="float">
+  Minimum trip amount in dollars for the week
+</ResponseField>
+
+<ResponseField name="max_trip_amount" type="float">
+  Maximum trip amount in dollars for the week
+</ResponseField>
+
+<ResponseField name="mean_trip_amount" type="float">
+  Average trip amount in dollars for the week
+</ResponseField>
+
+<ResponseField name="total_services" type="int">
+  Total number of trips for the week
+</ResponseField>
+
+<ResponseField name="percentage_variation" type="float">
+  Week-over-week percentage change in total services (NaN for first week)
+</ResponseField>
+
+### Implementation Details
+
+From source/main.py:74-93
+
+```python
+def generate_week_metrics(self):
+    self.data['trip_time'] = self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']
+    self.data['trip_time_in_seconds'] = self.data['trip_time'].dt.total_seconds()
+
+    self.csv_df = self.data.groupby('year_week').agg(
+        min_trip_time=('trip_time_in_seconds', 'min'),
+        max_trip_time=('trip_time_in_seconds', 'max'),
+        mean_trip_time=('trip_time_in_seconds', 'mean'),
+        min_trip_distance=('trip_distance', 'min'),
+        max_trip_distance=('trip_distance', 'max'),
+        mean_trip_distance=('trip_distance', 'mean'),
+        min_trip_amount=('total_amount', 'min'),
+        max_trip_amount=('total_amount', 'max'),
+        mean_trip_amount=('total_amount', 'mean'),
+        total_services=('total_amount', 'count')
+    ).reset_index()
+
+    self.csv_df['percentage_variation'] = (
+        self.csv_df['total_services'] - self.csv_df['total_services'].shift(1)
+        ) / self.csv_df['total_services'].shift(1) * 100
+```
+
+---
+
+## generate_month_metrics()
+
+Generates monthly metrics segmented by rate code type and day type.
+
+```python
+def generate_month_metrics(self)
+```
+
+### Description
+
+Segments data by rate code (Regular, JFK, Other) and day type (weekday vs weekend), then calculates monthly aggregated statistics for services, distances, and passengers.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value (modifies `self.jfk_df`, `self.regular_df`, and `self.other_df` in place).
+
+### Side Effects
+
+- **Adds column to `self.data`**: 
+  - `day_type`: 1 for weekdays (Mon-Fri), 2 for weekends (Sat-Sun)
+- **Converts `RatecodeID`**: Changes to integer type
+- **Populates three DataFrames**: `regular_df`, `jfk_df`, and `other_df`
+
+### Rate Code Categories
+
+- **Regular (RatecodeID = 1)**: Standard rate trips
+- **JFK (RatecodeID = 2)**: JFK airport trips
+- **Other (RatecodeID != 1 and != 2)**: All other rate codes (negotiated, Newark, Nassau/Westchester, etc.)
+
+### Output DataFrames Structure
+
+Each DataFrame (`regular_df`, `jfk_df`, `other_df`) contains:
+
+<ResponseField name="year_month" type="str">
+  Month identifier in 'YYYY-MM' format
+</ResponseField>
+
+<ResponseField name="day_type" type="int">
+  1 for weekdays, 2 for weekends
+</ResponseField>
+
+<ResponseField name="services" type="int">
+  Total number of trips for the month and day type
+</ResponseField>
+
+<ResponseField name="distances" type="float">
+  Sum of all trip distances in miles
+</ResponseField>
+
+<ResponseField name="passengers" type="int">
+  Sum of all passengers transported
+</ResponseField>
+
+### Implementation Details
+
+From source/main.py:96-123
+
+```python
+def generate_month_metrics(self):
+    rate_code_id_dict = {
+        'regular_df': 1,
+        'jfk_df': 2,
+        'other_df': -1
+    }
+
+    self.data['day_type'] = np.where(self.data['tpep_dropoff_datetime'].dt.dayofweek >= 5, 2, 1)
+    self.data['RatecodeID'] = self.data['RatecodeID'].astype(int)
+
+    for rc_id in rate_code_id_dict.keys():
+        attr = getattr(self, rc_id)
+
+        if rate_code_id_dict[rc_id] in [1, 2]:
+            df = self.data[self.data['RatecodeID'] == rate_code_id_dict[rc_id]]
+        else:
+            df = self.data[(self.data['RatecodeID'] != 1) & (self.data['RatecodeID'] != 2)]
+
+        df = df[['year_month', 'day_type', 'trip_distance', 'passenger_count']]
+
+        df = df.groupby(['year_month', 'day_type']).agg(
+            services=('trip_distance', 'count'),
+            distances=('trip_distance', 'sum'),
+            passengers=('passenger_count', 'sum')
+        ).reset_index()
+
+        attr = pd.concat([attr, df])
+        setattr(self, rc_id, attr)
+```
+
+<Note>
+  Day type uses pandas `dayofweek` where Monday=0 and Sunday=6. Days >= 5 (Saturday and Sunday) are marked as weekends (day_type=2).
+</Note>
+
+---
+
+## format_data()
+
+Formats and prepares all DataFrames for export.
+
+```python
+def format_data(self)
+```
+
+### Description
+
+Applies final formatting to all result DataFrames including rounding numeric values and resetting indexes.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value (modifies DataFrames in place).
+
+### Side Effects
+
+- **Rounds `self.csv_df`**: All numeric values rounded to 2 decimal places
+- **Resets indexes**: `jfk_df`, `regular_df`, and `other_df` have their indexes reset
+
+### Implementation Details
+
+From source/main.py:126-131
+
+```python
+def format_data(self):
+    self.csv_df = self.csv_df.round(2)
+
+    self.jfk_df = self.jfk_df.reset_index()
+    self.regular_df = self.regular_df.reset_index()
+    self.other_df = self.other_df.reset_index()
+```
+
+<Note>
+  Call this method after `generate_week_metrics()` and `generate_month_metrics()` to ensure all data is properly formatted before export.
+</Note>

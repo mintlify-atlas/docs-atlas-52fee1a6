@@ -1,80 +1,208 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Process NYC Yellow Taxi data in under 60 seconds"
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+Get your first Yellow Taxi data analysis running in minutes. This guide will walk you through processing 3 months of NYC taxi trip data and generating comprehensive metrics reports.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+This quickstart requires an internet connection to download parquet files directly from the NYC TLC Trip Record Data CDN.
 </Note>
+
+## Prerequisites
+
+- Python 3.9 or higher installed
+- Internet connection (for downloading data files)
+- ~500MB of free disk space
+
+<Steps>
+  <Step title="Clone and navigate to the project">
+    ```bash
+    git clone <your-repository-url>
+    cd yellow-taxi-analytics
+    ```
+  </Step>
+
+  <Step title="Set up virtual environment">
+    Create and activate a Python virtual environment:
+
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+    <Tip>
+    On Windows, use `venv\Scripts\activate` instead.
+    </Tip>
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required packages from requirements.txt:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    This installs pandas, numpy, pyarrow, openpyxl, and other dependencies.
+  </Step>
+
+  <Step title="Run the analysis">
+    Execute the main script to process January-March 2022 data:
+
+    ```bash
+    python main.py
+    ```
+
+    You'll see real-time progress output:
+
+    ```
+    Init objects ...
+    *** 0.00547895899999995 seconds ***
+    Importing data ...
+    *** 7.456109084 seconds ***
+    Cleaning data ...
+    *** 5.637706417 seconds ***
+    Adding more columns ...
+    *** 30.625991959 seconds ***
+    Generating week metrics ...
+    *** 1.227824708 seconds ***
+    Generating month metrics ...
+    *** 7.938639625 seconds ***
+    Formatting results ...
+    *** 0.0005992090000006556 seconds ***
+    Exporting results ...
+    *** 0.09505266699999737 seconds ***
+    Execution time: 52.987694084 seconds
+    ```
+
+    <Note>
+    Processing time may vary based on your internet speed and system performance. Expect 50-90 seconds for 3 months of data.
+    </Note>
+  </Step>
+
+  <Step title="View the results">
+    Two output files are generated in your project directory:
+
+    **1. Weekly Metrics CSV** (`processed_data.csv`)
+    
+    Pipe-delimited file with weekly trip statistics:
+
+    ```bash
+    head processed_data.csv
+    ```
+
+    Columns include:
+    - `year_week`: Year and ISO week number (e.g., 2022-001)
+    - `min_trip_time`, `max_trip_time`, `mean_trip_time`: Trip duration stats (seconds)
+    - `min_trip_distance`, `max_trip_distance`, `mean_trip_distance`: Distance stats (miles)
+    - `min_trip_amount`, `max_trip_amount`, `mean_trip_amount`: Fare stats (USD)
+    - `total_services`: Number of trips in the week
+    - `percentage_variation`: Week-over-week change in trip volume
+
+    **2. Monthly Metrics Excel** (`processed_data.xlsx`)
+    
+    Multi-sheet workbook with three sheets:
+
+    - **JFK Sheet**: Trips to/from JFK Airport (RateCodeID: 2)
+    - **Regular Sheet**: Standard rate trips (RateCodeID: 1)
+    - **Others Sheet**: All other rate types
+
+    Each sheet contains:
+    - `year_month`: Month (e.g., 2022-01)
+    - `day_type`: 1 = Weekday, 2 = Weekend
+    - `services`: Number of trips
+    - `distances`: Total miles traveled
+    - `passengers`: Total passenger count
+
+    Open in Excel, LibreOffice, or Google Sheets:
+
+    ```bash
+    # macOS
+    open processed_data.xlsx
+
+    # Linux
+    xdg-open processed_data.xlsx
+
+    # Windows
+    start processed_data.xlsx
+    ```
+  </Step>
+</Steps>
+
+## Understanding the Code
+
+The analysis uses the `YellowTaxiData` class (main.py:5-148). Here's the basic usage pattern:
+
+```python
+import time
+from main import YellowTaxiData
+
+# Initialize with date range
+yellow_taxi_data = YellowTaxiData(
+    start_date='2022-01-01', 
+    end_date='2022-03-31'
+)
+
+# Run the complete pipeline
+yellow_taxi_data.import_data()           # Download parquet files
+yellow_taxi_data.clean_data()            # Validate and filter
+yellow_taxi_data.add_more_columns()      # Add date/time columns
+yellow_taxi_data.generate_week_metrics() # Weekly aggregations
+yellow_taxi_data.generate_month_metrics()# Monthly aggregations
+yellow_taxi_data.format_data()           # Round and format
+yellow_taxi_data.export_data()           # Save CSV and Excel
+```
+
+## Customizing the Date Range
+
+To analyze a different time period, modify the date parameters in `main.py:156`:
+
+```python
+# Example: Analyze full year 2022
+yellow_taxi_data = YellowTaxiData(
+    start_date='2022-01-01', 
+    end_date='2022-12-31'
+)
+```
+
+<Warning>
+Processing more months increases execution time and memory usage. A full year (12 months) may take 3-5 minutes and require 4-8GB of RAM.
+</Warning>
+
+## Next Steps
+
+- **Learn more** about the [installation process](/installation) and troubleshooting
+- **Explore the code** in `main.py` to understand the data transformations
+- **Run tests** with `pytest` to validate your setup
+- **Customize metrics** by modifying the aggregation functions in `generate_week_metrics()` and `generate_month_metrics()`
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="ModuleNotFoundError: No module named 'pandas'">
+    Make sure you've activated your virtual environment and installed dependencies:
+    
+    ```bash
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+  </Accordion>
+
+  <Accordion title="Connection timeout or download errors">
+    The script downloads parquet files from `d37ci6vzurychx.cloudfront.net`. If downloads fail:
+    
+    - Check your internet connection
+    - Verify the date range exists in NYC's data repository
+    - Try reducing the date range to fewer months
+  </Accordion>
+
+  <Accordion title="Memory error or system slowdown">
+    Processing large date ranges requires significant RAM:
+    
+    - Start with 1-3 months of data
+    - Close other applications to free memory
+    - Consider processing data in smaller batches
+  </Accordion>
+</AccordionGroup>

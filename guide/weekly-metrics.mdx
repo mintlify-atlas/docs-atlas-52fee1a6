@@ -1,0 +1,241 @@
+---
+title: Weekly Metrics
+description: Deep dive into weekly aggregated metrics for NYC Yellow Taxi data
+---
+
+## Overview
+
+The `generate_week_metrics()` method calculates comprehensive weekly statistics for trip time, distance, and fare amounts. This provides a time-series view of taxi service patterns and enables week-over-week trend analysis.
+
+## How It Works
+
+The method aggregates data by `year_week` (format: YYYY-WWW) to compute statistical measures and service counts:
+
+```python main.py
+def generate_week_metrics(self):
+    # Calculate trip duration
+    self.data['trip_time'] = self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']
+    self.data['trip_time_in_seconds'] = self.data['trip_time'].dt.total_seconds()
+
+    # Aggregate by week
+    self.csv_df = self.data.groupby('year_week').agg(
+        min_trip_time=('trip_time_in_seconds', 'min'),
+        max_trip_time=('trip_time_in_seconds', 'max'),
+        mean_trip_time=('trip_time_in_seconds', 'mean'),
+        min_trip_distance=('trip_distance', 'min'),
+        max_trip_distance=('trip_distance', 'max'),
+        mean_trip_distance=('trip_distance', 'mean'),
+        min_trip_amount=('total_amount', 'min'),
+        max_trip_amount=('total_amount', 'max'),
+        mean_trip_amount=('total_amount', 'mean'),
+        total_services=('total_amount', 'count')
+    ).reset_index()
+
+    # Calculate week-over-week percentage change
+    self.csv_df['percentage_variation'] = (
+        self.csv_df['total_services'] - self.csv_df['total_services'].shift(1)
+    ) / self.csv_df['total_services'].shift(1) * 100
+```
+
+## Metrics Calculated
+
+### Trip Time Statistics
+
+- **min_trip_time**: Shortest trip duration in seconds
+- **max_trip_time**: Longest trip duration in seconds  
+- **mean_trip_time**: Average trip duration in seconds
+
+These metrics help identify:
+- Quick trips (likely short distances or off-peak hours)
+- Extended trips (long distances or heavy traffic)
+- Typical trip duration patterns by week
+
+### Trip Distance Statistics
+
+- **min_trip_distance**: Shortest trip distance in miles
+- **max_trip_distance**: Longest trip distance in miles
+- **mean_trip_distance**: Average trip distance in miles
+
+Useful for understanding:
+- Service area coverage
+- Long-distance vs short-distance trip patterns
+- Distance trends over time
+
+### Trip Amount Statistics
+
+- **min_trip_amount**: Minimum fare in dollars
+- **max_trip_amount**: Maximum fare in dollars
+- **mean_trip_amount**: Average fare in dollars
+
+Helps analyze:
+- Fare distribution
+- Revenue patterns
+- Pricing trends
+
+### Service Volume
+
+- **total_services**: Total number of completed trips in the week
+
+Key metric for:
+- Demand analysis
+- Capacity planning
+- Trend identification
+
+### Week-over-Week Variation
+
+- **percentage_variation**: Percentage change in total services compared to the previous week
+
+Calculated as:
+```
+(current_week_services - previous_week_services) / previous_week_services × 100
+```
+
+This metric highlights:
+- Growth or decline in demand
+- Seasonal patterns
+- Impact of holidays or events
+
+<Tip>
+  The first week in the dataset will have `NaN` for percentage_variation since there's no previous week to compare against.
+</Tip>
+
+## Data Grouping
+
+Data is grouped by the `year_week` column, which is created during the `add_more_columns()` step:
+
+```python main.py
+self.data['year_dt'] = self.data['tpep_dropoff_datetime'].dt.year.astype(str)
+self.data['week_dt'] = self.data['tpep_dropoff_datetime'].dt.isocalendar().week.astype(str).str.zfill(3)
+self.data['year_week'] = self.data['year_dt'].str.cat(self.data['week_dt'], sep='-')
+```
+
+Weeks follow the ISO calendar standard:
+- Week 1 is the first week with a Thursday in the new year
+- Weeks run Monday through Sunday
+- Format: `YYYY-WWW` (e.g., `2022-001`, `2022-052`)
+
+## Output Format
+
+The weekly metrics are stored in the `csv_df` DataFrame and exported as a pipe-delimited CSV file.
+
+### Column Order
+
+```
+year_week|min_trip_time|max_trip_time|mean_trip_time|min_trip_distance|max_trip_distance|mean_trip_distance|min_trip_amount|max_trip_amount|mean_trip_amount|total_services|percentage_variation
+```
+
+### Example Output Data
+
+```csv
+year_week|min_trip_time|max_trip_time|mean_trip_time|min_trip_distance|max_trip_distance|mean_trip_distance|min_trip_amount|max_trip_amount|mean_trip_amount|total_services|percentage_variation
+2022-001|60.0|7185.0|847.32|0.01|48.7|3.42|0.01|312.5|18.75|845623|
+2022-002|60.0|7243.0|851.18|0.01|49.2|3.45|0.01|318.0|18.92|862341|1.98
+2022-003|60.0|7156.0|839.64|0.01|47.8|3.38|0.01|308.25|18.53|878956|1.93
+2022-004|60.0|7298.0|856.47|0.01|50.1|3.48|0.01|325.75|19.08|891234|1.40
+2022-005|60.0|7087.0|832.91|0.01|46.9|3.35|0.01|302.5|18.35|854782|-4.09
+2022-006|60.0|7412.0|868.53|0.01|51.3|3.52|0.01|332.0|19.45|897651|5.01
+2022-007|60.0|7189.0|845.28|0.01|48.5|3.41|0.01|315.25|18.68|883429|-1.58
+2022-008|60.0|7267.0|853.76|0.01|49.6|3.47|0.01|321.5|18.98|905817|2.54
+2022-009|60.0|7134.0|837.92|0.01|47.4|3.36|0.01|306.75|18.46|869543|-4.00
+2022-010|60.0|7345.0|862.15|0.01|50.8|3.51|0.01|328.0|19.23|916782|5.43
+2022-011|60.0|7098.0|829.46|0.01|46.2|3.33|0.01|298.5|18.21|847291|-7.58
+2022-012|60.0|7456.0|875.39|0.01|52.1|3.56|0.01|338.75|19.67|928456|9.58
+2022-013|60.0|7203.0|848.64|0.01|48.9|3.43|0.01|317.25|18.79|891673|-3.96
+```
+
+<Tip>
+  All numeric values are rounded to 2 decimal places during the `format_data()` step.
+</Tip>
+
+## Interpreting the Results
+
+### Identifying Trends
+
+Look for patterns in the data:
+
+- **Consistent positive percentage_variation**: Growing demand
+- **Consistent negative percentage_variation**: Declining demand  
+- **Large fluctuations**: Seasonal effects or special events
+- **Stable mean values**: Predictable service patterns
+
+### Example Analysis
+
+From the sample data above:
+
+- **Week 2022-005** shows a -4.09% drop in services (possibly a holiday week)
+- **Week 2022-012** shows a +9.58% spike in services (possibly spring break)
+- Average trip time hovers around 840-875 seconds (~14-15 minutes)
+- Average trip distance is consistently 3.3-3.6 miles
+- Average fare ranges from $18-20
+
+### Anomaly Detection
+
+Watch for:
+
+- Extreme min/max values that may indicate data quality issues
+- Sudden drops in total_services (system outages, weather events)
+- Unusual percentage variations (>20% week-over-week)
+
+## Use Cases
+
+### Demand Forecasting
+
+Use historical percentage_variation patterns to predict future demand:
+
+```python
+import pandas as pd
+
+# Load weekly metrics
+df = pd.read_csv('processed_data.csv', sep='|')
+
+# Calculate rolling average variation
+df['rolling_avg_variation'] = df['percentage_variation'].rolling(window=4).mean()
+
+# Forecast next week's services
+last_services = df.iloc[-1]['total_services']
+last_variation = df.iloc[-1]['rolling_avg_variation']
+forecast = last_services * (1 + last_variation / 100)
+```
+
+### Performance Benchmarking
+
+Compare current week against historical averages:
+
+```python
+# Calculate overall averages
+avg_trip_time = df['mean_trip_time'].mean()
+avg_trip_distance = df['mean_trip_distance'].mean()
+avg_trip_amount = df['mean_trip_amount'].mean()
+
+# Compare current week
+current_week = df.iloc[-1]
+print(f"Time vs Avg: {(current_week['mean_trip_time'] / avg_trip_time - 1) * 100:.2f}%")
+print(f"Distance vs Avg: {(current_week['mean_trip_distance'] / avg_trip_distance - 1) * 100:.2f}%")
+print(f"Amount vs Avg: {(current_week['mean_trip_amount'] / avg_trip_amount - 1) * 100:.2f}%")
+```
+
+### Visualization
+
+Create time-series charts to visualize trends:
+
+```python
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('processed_data.csv', sep='|')
+
+# Plot services over time
+plt.figure(figsize=(12, 6))
+plt.plot(df['year_week'], df['total_services'])
+plt.xlabel('Week')
+plt.ylabel('Total Services')
+plt.title('Weekly Taxi Services')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+
+## Next Steps
+
+- Explore [Monthly Metrics](/guide/monthly-metrics) for rate code analysis
+- Learn about [Exporting Results](/guide/exporting-results) formats
+- Return to the complete [Processing Data](/guide/processing-data) workflow

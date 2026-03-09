@@ -1,0 +1,262 @@
+---
+title: 'Export Methods'
+description: 'Methods for exporting processed data to CSV and Excel formats'
+---
+
+## export_data()
+
+Exports all processed data to both CSV and Excel formats.
+
+```python
+def export_data(self)
+```
+
+### Description
+
+Convenience method that calls both `export_csv_data()` and `export_excel_data()` to generate all output files in a single operation.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value.
+
+### Output Files
+
+Generates two files in the current working directory:
+
+1. **processed_data.csv** - Weekly metrics with pipe delimiter
+2. **processed_data.xlsx** - Monthly metrics with three sheets (JFK, Regular, Others)
+
+### Implementation Details
+
+From source/main.py:146-148
+
+```python
+def export_data(self):
+    self.export_csv_data()
+    self.export_excel_data()
+```
+
+### Usage Example
+
+```python
+# After processing all data
+yellow_taxi_data.export_data()
+
+# Output:
+# - processed_data.csv (weekly aggregated metrics)
+# - processed_data.xlsx (monthly metrics by rate code)
+```
+
+<Note>
+  Ensure `generate_week_metrics()`, `generate_month_metrics()`, and `format_data()` have been called before exporting to ensure data is complete and properly formatted.
+</Note>
+
+---
+
+## export_csv_data()
+
+Exports weekly aggregated metrics to a CSV file.
+
+```python
+def export_csv_data(self)
+```
+
+### Description
+
+Writes the `csv_df` DataFrame containing weekly metrics to a pipe-delimited CSV file.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value.
+
+### Output File Details
+
+**Filename**: `processed_data.csv`
+
+**Location**: Current working directory
+
+**Delimiter**: Pipe character (`|`)
+
+**Index**: Not included in output
+
+**Columns**:
+
+<ResponseField name="year_week" type="str">
+  Week identifier in 'YYYY-WWW' format
+</ResponseField>
+
+<ResponseField name="min_trip_time" type="float">
+  Minimum trip time in seconds (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="max_trip_time" type="float">
+  Maximum trip time in seconds (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="mean_trip_time" type="float">
+  Average trip time in seconds (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="min_trip_distance" type="float">
+  Minimum trip distance in miles (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="max_trip_distance" type="float">
+  Maximum trip distance in miles (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="mean_trip_distance" type="float">
+  Average trip distance in miles (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="min_trip_amount" type="float">
+  Minimum trip amount in dollars (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="max_trip_amount" type="float">
+  Maximum trip amount in dollars (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="mean_trip_amount" type="float">
+  Average trip amount in dollars (rounded to 2 decimals)
+</ResponseField>
+
+<ResponseField name="total_services" type="int">
+  Total number of trips for the week
+</ResponseField>
+
+<ResponseField name="percentage_variation" type="float">
+  Week-over-week percentage change in total services (rounded to 2 decimals)
+</ResponseField>
+
+### Implementation Details
+
+From source/main.py:134-135
+
+```python
+def export_csv_data(self):
+    self.csv_df.to_csv('processed_data.csv', sep='|', index=False)
+```
+
+### Example Output
+
+```csv
+year_week|min_trip_time|max_trip_time|mean_trip_time|min_trip_distance|max_trip_distance|mean_trip_distance|min_trip_amount|max_trip_amount|mean_trip_amount|total_services|percentage_variation
+2022-001|60.0|7245.0|876.34|0.01|45.67|3.42|2.8|487.5|18.76|152340|
+2022-002|60.0|6832.0|891.22|0.01|43.21|3.38|2.8|456.3|18.54|149872|-1.62
+```
+
+<Note>
+  The pipe delimiter (`|`) is used instead of comma to avoid conflicts with decimal values and potential commas in data fields.
+</Note>
+
+---
+
+## export_excel_data()
+
+Exports monthly metrics to an Excel file with multiple sheets.
+
+```python
+def export_excel_data(self)
+```
+
+### Description
+
+Writes monthly metrics segmented by rate code type to a multi-sheet Excel workbook. Each rate code category (JFK, Regular, Others) is exported to a separate sheet.
+
+### Parameters
+
+No parameters required.
+
+### Returns
+
+No return value.
+
+### Output File Details
+
+**Filename**: `processed_data.xlsx`
+
+**Location**: Current working directory
+
+**Engine**: OpenPyXL
+
+**Index**: Not included in output
+
+**Sheets**:
+
+1. **JFK** - Metrics for JFK airport trips (RatecodeID = 2)
+2. **Regular** - Metrics for standard rate trips (RatecodeID = 1)
+3. **Others** - Metrics for all other rate codes
+
+### Sheet Structure
+
+All sheets contain the same columns:
+
+<ResponseField name="year_month" type="str">
+  Month identifier in 'YYYY-MM' format
+</ResponseField>
+
+<ResponseField name="day_type" type="int">
+  1 for weekdays (Monday-Friday), 2 for weekends (Saturday-Sunday)
+</ResponseField>
+
+<ResponseField name="services" type="int">
+  Total number of trips for the month and day type
+</ResponseField>
+
+<ResponseField name="distances" type="float">
+  Sum of all trip distances in miles for the month and day type
+</ResponseField>
+
+<ResponseField name="passengers" type="int">
+  Sum of all passengers transported for the month and day type
+</ResponseField>
+
+### Implementation Details
+
+From source/main.py:138-143
+
+```python
+def export_excel_data(self):
+    common_columns = ['year_month', 'day_type', 'services', 'distances', 'passengers']
+    with pd.ExcelWriter("processed_data.xlsx", engine="openpyxl") as writer:
+        self.jfk_df[common_columns].to_excel(writer, sheet_name="JFK", index=False)
+        self.regular_df[common_columns].to_excel(writer, sheet_name="Regular", index=False)
+        self.other_df[common_columns].to_excel(writer, sheet_name="Others", index=False)
+```
+
+### Usage Example
+
+```python
+# Export only Excel file
+yellow_taxi_data.export_excel_data()
+
+# Result: processed_data.xlsx with three sheets
+```
+
+### Excel Sheet Preview
+
+**JFK Sheet Example:**
+
+| year_month | day_type | services | distances | passengers |
+|------------|----------|----------|-----------|------------|
+| 2022-01    | 1        | 45623    | 567823.45 | 78934      |
+| 2022-01    | 2        | 12456    | 154321.67 | 21543      |
+| 2022-02    | 1        | 47821    | 589234.12 | 82341      |
+| 2022-02    | 2        | 13124    | 162345.89 | 22678      |
+
+<Note>
+  OpenPyXL must be installed in your environment. Install with: `pip install openpyxl`
+</Note>
+
+<Note>
+  Each sheet represents a different rate code category, allowing easy comparison of metrics across trip types and time periods.
+</Note>

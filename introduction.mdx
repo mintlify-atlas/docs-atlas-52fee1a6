@@ -1,0 +1,116 @@
+---
+title: "Introduction"
+description: "NYC Yellow Taxi data analytics platform for processing and analyzing trip data"
+---
+
+# Yellow Taxi NYC Data Analytics
+
+A Python-based analytics tool for processing, cleaning, and analyzing NYC Yellow Taxi trip data. This tool downloads parquet files directly from the NYC TLC Trip Record Data repository, processes millions of records, and generates comprehensive metrics reports.
+
+## What Does It Do?
+
+The Yellow Taxi Data Analytics tool transforms raw NYC taxi trip data into actionable insights through an automated pipeline:
+
+- **Downloads** monthly parquet files from NYC's official data source
+- **Cleans** data by removing duplicates, invalid trips, and outliers
+- **Processes** millions of trip records with optimized pandas operations
+- **Generates** weekly and monthly metrics across multiple dimensions
+- **Exports** results to CSV and Excel formats for easy analysis
+
+## Key Capabilities
+
+### Data Import & Cleaning
+- Automatic download from NYC TLC Trip Record Data CDN
+- Intelligent filtering of essential columns (datetime, distance, fare, passenger count)
+- Data validation and quality checks:
+  - Removes trips with invalid timestamps
+  - Filters trips shorter than 60 seconds
+  - Excludes trips exceeding 100 mph average speed
+  - Validates fare amounts ($0-$5000 range)
+
+### Metrics Generation
+
+**Weekly Metrics:**
+- Trip time statistics (min, max, mean)
+- Trip distance statistics
+- Fare amount statistics
+- Total service counts
+- Week-over-week percentage variations
+
+**Monthly Metrics by Rate Code:**
+- Regular trips (RateCodeID: 1)
+- JFK Airport trips (RateCodeID: 2)
+- Other rate types
+- Segmented by weekday vs. weekend
+- Service counts, total distances, passenger counts
+
+### Export Formats
+
+**CSV Export** (`processed_data.csv`):
+- Pipe-delimited weekly metrics
+- Complete time series with percentage variations
+
+**Excel Export** (`processed_data.xlsx`):
+- Multi-sheet workbook
+- Separate sheets for JFK, Regular, and Other rate types
+- Ready for pivot tables and further analysis
+
+## Who Should Use This?
+
+- **Data Analysts** studying NYC transportation patterns
+- **Researchers** analyzing urban mobility trends
+- **Business Analysts** evaluating taxi service metrics
+- **Students** learning pandas and data processing techniques
+- **Developers** building transportation analytics applications
+
+## Architecture Overview
+
+The tool follows a clean, sequential processing pipeline:
+
+```
+┌─────────────────┐
+│  Data Import    │  Download monthly parquet files from NYC CDN
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Data Cleaning  │  Remove duplicates, validate trips, filter outliers
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Add Columns    │  Generate year-month, year-week, date columns
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Metrics Engine  │  Calculate weekly & monthly aggregations
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Export Data    │  Generate CSV and Excel reports
+└─────────────────┘
+```
+
+## Performance
+
+Processing 3 months of data (January-March 2022) with millions of trip records:
+
+- **Total execution time:** ~53 seconds
+- **Import:** ~7.5 seconds
+- **Cleaning:** ~5.6 seconds
+- **Column generation:** ~30.6 seconds
+- **Metrics calculation:** ~9.2 seconds
+- **Export:** &lt;0.1 seconds
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get your first analysis running in under 60 seconds
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Set up your environment and install dependencies
+  </Card>
+</CardGroup>

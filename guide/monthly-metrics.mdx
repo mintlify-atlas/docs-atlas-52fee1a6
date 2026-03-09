@@ -1,0 +1,372 @@
+---
+title: Monthly Metrics
+description: Deep dive into monthly metrics broken down by rate code and day type
+---
+
+## Overview
+
+The `generate_month_metrics()` method calculates monthly aggregated statistics segmented by rate code type (Regular, JFK, Other) and day type (weekday vs weekend). This provides insights into service patterns across different fare types and temporal categories.
+
+## How It Works
+
+The method splits data into three categories based on RatecodeID, then aggregates by month and day type:
+
+```python main.py
+def generate_month_metrics(self):
+    rate_code_id_dict = {
+        'regular_df': 1,
+        'jfk_df': 2,
+        'other_df': -1
+    }
+
+    # Classify weekdays (1) vs weekends (2)
+    self.data['day_type'] = np.where(
+        self.data['tpep_dropoff_datetime'].dt.dayofweek >= 5, 
+        2, 
+        1
+    )
+    self.data['RatecodeID'] = self.data['RatecodeID'].astype(int)
+
+    for rc_id in rate_code_id_dict.keys():
+        attr = getattr(self, rc_id)
+
+        if rate_code_id_dict[rc_id] in [1, 2]:
+            df = self.data[self.data['RatecodeID'] == rate_code_id_dict[rc_id]]
+        else:
+            df = self.data[
+                (self.data['RatecodeID'] != 1) & 
+                (self.data['RatecodeID'] != 2)
+            ]
+
+        df = df[['year_month', 'day_type', 'trip_distance', 'passenger_count']]
+
+        df = df.groupby(['year_month', 'day_type']).agg(
+            services=('trip_distance', 'count'),
+            distances=('trip_distance', 'sum'),
+            passengers=('passenger_count', 'sum')
+        ).reset_index()
+
+        attr = pd.concat([attr, df])
+        setattr(self, rc_id, attr)
+```
+
+## Rate Code Categories
+
+### Regular (RatecodeID = 1)
+
+Standard city trips with metered fares. This is the most common rate code, representing typical street hail and dispatch services within NYC.
+
+**Stored in**: `self.regular_df`
+
+### JFK (RatecodeID = 2)
+
+Flat-fare trips to/from John F. Kennedy International Airport. These trips have a fixed $52 fare (plus tolls and tips) regardless of distance or time.
+
+**Stored in**: `self.jfk_df`
+
+### Other (RatecodeID ≠ 1 and ≠ 2)
+
+All other rate codes including:
+- Newark trips (RatecodeID = 3)
+- Nassau/Westchester (RatecodeID = 4)
+- Negotiated fares (RatecodeID = 5)
+- Group rides (RatecodeID = 6)
+
+**Stored in**: `self.other_df`
+
+## Day Type Classification
+
+Trips are classified into two categories based on the dropoff datetime:
+
+- **Weekday (day_type = 1)**: Monday through Friday
+- **Weekend (day_type = 2)**: Saturday and Sunday
+
+```python
+self.data['day_type'] = np.where(
+    self.data['tpep_dropoff_datetime'].dt.dayofweek >= 5,
+    2,  # Weekend (day 5=Saturday, 6=Sunday)
+    1   # Weekday (days 0-4)
+)
+```
+
+<Tip>
+  Day type is determined by the dropoff time, not pickup time. This ensures trips are categorized by when the service was completed.
+</Tip>
+
+## Metrics Calculated
+
+For each combination of rate code, month, and day type, three metrics are computed:
+
+### Services Count
+
+```python
+services=('trip_distance', 'count')
+```
+
+Total number of completed trips in that category. This uses `trip_distance` for counting to ensure we only count trips with valid distance data.
+
+### Total Distances
+
+```python
+distances=('trip_distance', 'sum')
+```
+
+Sum of all trip distances in miles for that category. Useful for understanding total service coverage and demand patterns.
+
+### Total Passengers
+
+```python
+passengers=('passenger_count', 'sum')
+```
+
+Sum of all passengers transported in that category. Helps analyze capacity utilization and group travel patterns.
+
+## Output Organization
+
+Results are organized into three separate DataFrames, each exported to its own Excel sheet:
+
+### Common Structure
+
+All three DataFrames share the same column structure:
+
+```
+year_month | day_type | services | distances | passengers
+```
+
+### Sheet Layout in Excel
+
+The exported Excel file (`processed_data.xlsx`) contains three sheets:
+
+1. **JFK**: Airport trips data
+2. **Regular**: Standard city trips data  
+3. **Others**: All other rate codes data
+
+```python main.py
+def export_excel_data(self):
+    common_columns = ['year_month', 'day_type', 'services', 'distances', 'passengers']
+    with pd.ExcelWriter("processed_data.xlsx", engine="openpyxl") as writer:
+        self.jfk_df[common_columns].to_excel(writer, sheet_name="JFK", index=False)
+        self.regular_df[common_columns].to_excel(writer, sheet_name="Regular", index=False)
+        self.other_df[common_columns].to_excel(writer, sheet_name="Others", index=False)
+```
+
+## Example Output Data
+
+<Tabs>
+  <Tab title="Regular">
+    Standard metered trips - the largest volume of services:
+
+    ```
+    year_month  day_type  services   distances    passengers
+    2022-01     1         2456789    8456234.56   3245678
+    2022-01     2         876543     2987654.32   1156789
+    2022-02     1         2389456    8234567.89   3189456
+    2022-02     2         845678     2876543.21   1123456
+    2022-03     1         2567891    8678945.67   3378912
+    2022-03     2         912345     3123456.78   1201234
+    ```
+
+    **Key Insights**:
+    - Weekday services are ~2.8x higher than weekends
+    - Average trip distance: ~3.4 miles (weekday) vs ~3.4 miles (weekend)
+    - Average passengers per trip: ~1.32 (relatively consistent)
+  </Tab>
+
+  <Tab title="JFK">
+    Airport trips with flat-fare pricing:
+
+    ```
+    year_month  day_type  services  distances    passengers
+    2022-01     1         45678     789456.78    56789
+    2022-01     2         38912     672345.67    48234
+    2022-02     1         43567     752891.23    54321
+    2022-02     2         36789     634567.89    45678
+    2022-03     1         47891     827345.12    59678
+    2022-03     2         40123     692834.56    49876
+    ```
+
+    **Key Insights**:
+    - More balanced weekday/weekend distribution than Regular
+    - Average trip distance: ~17.3 miles (airport to Manhattan)
+    - Slightly higher weekend passenger count (leisure travel)
+  </Tab>
+
+  <Tab title="Others">
+    All other rate codes (Newark, Nassau, negotiated, etc.):
+
+    ```
+    year_month  day_type  services  distances    passengers
+    2022-01     1         12345     234567.89    15678
+    2022-01     2         8901      167890.12    11234
+    2022-02     1         11678     221234.56    14890
+    2022-02     2         8456      159876.34    10678
+    2022-03     1         13012     245678.91    16234
+    2022-03     2         9234      173456.78    11678
+    ```
+
+    **Key Insights**:
+    - Smallest volume category
+    - Average trip distance: ~19 miles (longer trips to outer areas)
+    - More common on weekdays (business travel)
+  </Tab>
+</Tabs>
+
+## Data Interpretation
+
+### Weekday vs Weekend Analysis
+
+Compare day types to understand demand patterns:
+
+```python
+import pandas as pd
+
+# Load Regular sheet
+regular_df = pd.read_excel('processed_data.xlsx', sheet_name='Regular')
+
+# Calculate weekday vs weekend ratios
+weekday_data = regular_df[regular_df['day_type'] == 1]
+weekend_data = regular_df[regular_df['day_type'] == 2]
+
+weekday_avg_services = weekday_data['services'].mean()
+weekend_avg_services = weekend_data['services'].mean()
+
+ratio = weekday_avg_services / weekend_avg_services
+print(f"Weekday/Weekend Services Ratio: {ratio:.2f}x")
+```
+
+### Rate Code Comparison
+
+Compare service levels across rate codes:
+
+```python
+import pandas as pd
+
+# Load all sheets
+regular_df = pd.read_excel('processed_data.xlsx', sheet_name='Regular')
+jfk_df = pd.read_excel('processed_data.xlsx', sheet_name='JFK')
+other_df = pd.read_excel('processed_data.xlsx', sheet_name='Others')
+
+# Total services by rate code
+regular_total = regular_df['services'].sum()
+jfk_total = jfk_df['services'].sum()
+other_total = other_df['services'].sum()
+
+print(f"Regular: {regular_total:,} ({regular_total/(regular_total+jfk_total+other_total)*100:.1f}%)")
+print(f"JFK: {jfk_total:,} ({jfk_total/(regular_total+jfk_total+other_total)*100:.1f}%)")
+print(f"Other: {other_total:,} ({other_total/(regular_total+jfk_total+other_total)*100:.1f}%)")
+```
+
+### Monthly Trends
+
+Analyze growth patterns month-over-month:
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+regular_df = pd.read_excel('processed_data.xlsx', sheet_name='Regular')
+
+# Group by month (sum weekday + weekend)
+monthly_services = regular_df.groupby('year_month')['services'].sum()
+
+# Calculate month-over-month change
+mom_change = monthly_services.pct_change() * 100
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.bar(monthly_services.index, mom_change)
+plt.xlabel('Month')
+plt.ylabel('Month-over-Month Change (%)')
+plt.title('Regular Rate Code - Monthly Service Growth')
+plt.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+plt.tight_layout()
+plt.show()
+```
+
+## Use Cases
+
+### Airport Operations Planning
+
+Analyze JFK trips to optimize airport taxi stand capacity:
+
+```python
+jfk_df = pd.read_excel('processed_data.xlsx', sheet_name='JFK')
+
+# Calculate average daily trips
+jfk_weekday_daily = jfk_df[jfk_df['day_type'] == 1]['services'].mean() / 22  # ~22 weekdays/month
+jfk_weekend_daily = jfk_df[jfk_df['day_type'] == 2]['services'].mean() / 8   # ~8 weekend days/month
+
+print(f"Average weekday trips: {jfk_weekday_daily:.0f}/day")
+print(f"Average weekend trips: {jfk_weekend_daily:.0f}/day")
+```
+
+### Revenue Analysis
+
+Estimate revenue by rate code category:
+
+```python
+# Assumptions
+AVG_REGULAR_FARE = 18.50
+JFK_FLAT_FARE = 52.00
+AVG_OTHER_FARE = 35.00
+
+regular_revenue = regular_df['services'].sum() * AVG_REGULAR_FARE
+jfk_revenue = jfk_df['services'].sum() * JFK_FLAT_FARE
+other_revenue = other_df['services'].sum() * AVG_OTHER_FARE
+
+total_revenue = regular_revenue + jfk_revenue + other_revenue
+
+print(f"Estimated Total Revenue: ${total_revenue:,.2f}")
+print(f"  Regular: ${regular_revenue:,.2f} ({regular_revenue/total_revenue*100:.1f}%)")
+print(f"  JFK: ${jfk_revenue:,.2f} ({jfk_revenue/total_revenue*100:.1f}%)")
+print(f"  Other: ${other_revenue:,.2f} ({other_revenue/total_revenue*100:.1f}%)")
+```
+
+### Passenger Load Analysis
+
+Calculate average passengers per trip by category:
+
+```python
+for sheet_name in ['Regular', 'JFK', 'Others']:
+    df = pd.read_excel('processed_data.xlsx', sheet_name=sheet_name)
+    avg_passengers = df['passengers'].sum() / df['services'].sum()
+    print(f"{sheet_name}: {avg_passengers:.2f} passengers/trip")
+```
+
+## Best Practices
+
+<Tip>
+  When analyzing monthly metrics, always consider both services count and total distances together. A month with fewer services but higher total distance indicates longer trips, which may have different operational and revenue implications.
+</Tip>
+
+### Seasonality Considerations
+
+- **Regular trips**: Highest in fall/spring (commuter traffic)
+- **JFK trips**: Peak during summer and winter holidays
+- **Other trips**: More stable throughout the year
+
+### Data Quality Checks
+
+Before analysis, validate:
+
+```python
+# Check for missing months
+expected_months = pd.date_range('2022-01', '2022-03', freq='MS').strftime('%Y-%m')
+actual_months = regular_df['year_month'].unique()
+missing = set(expected_months) - set(actual_months)
+
+if missing:
+    print(f"Warning: Missing months: {missing}")
+
+# Check for missing day types (should have both 1 and 2 for each month)
+for month in regular_df['year_month'].unique():
+    day_types = regular_df[regular_df['year_month'] == month]['day_type'].unique()
+    if len(day_types) < 2:
+        print(f"Warning: {month} missing day type {set([1,2]) - set(day_types)}")
+```
+
+## Next Steps
+
+- Learn about [Exporting Results](/guide/exporting-results) file formats
+- Review [Weekly Metrics](/guide/weekly-metrics) for time-series analysis
+- Return to the complete [Processing Data](/guide/processing-data) workflow

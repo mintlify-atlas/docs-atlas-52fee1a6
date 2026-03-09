@@ -1,0 +1,448 @@
+---
+title: Exporting Results
+description: Understanding CSV and Excel export formats for processed taxi data
+---
+
+## Overview
+
+The `export_data()` method generates two output files containing processed metrics:
+
+1. **processed_data.csv**: Weekly metrics in pipe-delimited format
+2. **processed_data.xlsx**: Monthly metrics across three Excel sheets
+
+These exports provide different views of the data optimized for specific analysis needs.
+
+## Export Methods
+
+The export process is split into two methods called by `export_data()`:
+
+```python main.py
+def export_data(self):
+    self.export_csv_data()
+    self.export_excel_data()
+```
+
+## CSV Export: Weekly Metrics
+
+### File Format
+
+**Filename**: `processed_data.csv`  
+**Delimiter**: Pipe character (`|`)  
+**Encoding**: UTF-8  
+**Index**: Not included
+
+### Implementation
+
+```python main.py
+def export_csv_data(self):
+    self.csv_df.to_csv('processed_data.csv', sep='|', index=False)
+```
+
+### Column Structure
+
+The CSV contains 12 columns:
+
+| Column Name | Data Type | Description |
+|------------|-----------|-------------|
+| year_week | string | Week identifier (format: YYYY-WWW) |
+| min_trip_time | float | Minimum trip duration in seconds |
+| max_trip_time | float | Maximum trip duration in seconds |
+| mean_trip_time | float | Average trip duration in seconds |
+| min_trip_distance | float | Minimum trip distance in miles |
+| max_trip_distance | float | Maximum trip distance in miles |
+| mean_trip_distance | float | Average trip distance in miles |
+| min_trip_amount | float | Minimum fare amount in dollars |
+| max_trip_amount | float | Maximum fare amount in dollars |
+| mean_trip_amount | float | Average fare amount in dollars |
+| total_services | integer | Total number of trips |
+| percentage_variation | float | Week-over-week change in services (%) |
+
+### Example CSV Content
+
+```csv
+year_week|min_trip_time|max_trip_time|mean_trip_time|min_trip_distance|max_trip_distance|mean_trip_distance|min_trip_amount|max_trip_amount|mean_trip_amount|total_services|percentage_variation
+2022-001|60.0|7185.0|847.32|0.01|48.7|3.42|0.01|312.5|18.75|845623|
+2022-002|60.0|7243.0|851.18|0.01|49.2|3.45|0.01|318.0|18.92|862341|1.98
+2022-003|60.0|7156.0|839.64|0.01|47.8|3.38|0.01|308.25|18.53|878956|1.93
+2022-004|60.0|7298.0|856.47|0.01|50.1|3.48|0.01|325.75|19.08|891234|1.40
+2022-005|60.0|7087.0|832.91|0.01|46.9|3.35|0.01|302.5|18.35|854782|-4.09
+2022-006|60.0|7412.0|868.53|0.01|51.3|3.52|0.01|332.0|19.45|897651|5.01
+2022-007|60.0|7189.0|845.28|0.01|48.5|3.41|0.01|315.25|18.68|883429|-1.58
+2022-008|60.0|7267.0|853.76|0.01|49.6|3.47|0.01|321.5|18.98|905817|2.54
+2022-009|60.0|7134.0|837.92|0.01|47.4|3.36|0.01|306.75|18.46|869543|-4.00
+2022-010|60.0|7345.0|862.15|0.01|50.8|3.51|0.01|328.0|19.23|916782|5.43
+2022-011|60.0|7098.0|829.46|0.01|46.2|3.33|0.01|298.5|18.21|847291|-7.58
+2022-012|60.0|7456.0|875.39|0.01|52.1|3.56|0.01|338.75|19.67|928456|9.58
+2022-013|60.0|7203.0|848.64|0.01|48.9|3.43|0.01|317.25|18.79|891673|-3.96
+```
+
+### Reading the CSV
+
+<Tabs>
+  <Tab title="Python (pandas)">
+    ```python
+    import pandas as pd
+
+    # Read with pipe delimiter
+    df = pd.read_csv('processed_data.csv', sep='|')
+
+    # Display basic info
+    print(df.head())
+    print(f"\nTotal weeks: {len(df)}")
+    print(f"Date range: {df['year_week'].min()} to {df['year_week'].max()}")
+    ```
+  </Tab>
+
+  <Tab title="Excel">
+    1. Open Excel
+    2. Go to **Data** → **From Text/CSV**
+    3. Select `processed_data.csv`
+    4. In the import wizard, set delimiter to **Pipe (|)**
+    5. Click **Load**
+  </Tab>
+
+  <Tab title="Command Line">
+    ```bash
+    # View first 10 rows with column alignment
+    head -10 processed_data.csv | column -t -s'|'
+
+    # Count total rows (excluding header)
+    tail -n +2 processed_data.csv | wc -l
+
+    # Extract specific week
+    grep "2022-005" processed_data.csv
+    ```
+  </Tab>
+</Tabs>
+
+## Excel Export: Monthly Metrics
+
+### File Format
+
+**Filename**: `processed_data.xlsx`  
+**Format**: Excel 2010+ (.xlsx)  
+**Engine**: openpyxl  
+**Sheets**: 3 (JFK, Regular, Others)
+
+### Implementation
+
+```python main.py
+def export_excel_data(self):
+    common_columns = ['year_month', 'day_type', 'services', 'distances', 'passengers']
+    with pd.ExcelWriter("processed_data.xlsx", engine="openpyxl") as writer:
+        self.jfk_df[common_columns].to_excel(writer, sheet_name="JFK", index=False)
+        self.regular_df[common_columns].to_excel(writer, sheet_name="Regular", index=False)
+        self.other_df[common_columns].to_excel(writer, sheet_name="Others", index=False)
+```
+
+### Sheet Structure
+
+All three sheets share the same column structure:
+
+| Column Name | Data Type | Description |
+|------------|-----------|-------------|
+| year_month | string | Month identifier (format: YYYY-MM) |
+| day_type | integer | 1 = Weekday, 2 = Weekend |
+| services | integer | Total number of trips |
+| distances | float | Total distance traveled in miles |
+| passengers | integer | Total passengers transported |
+
+### Sheet Contents
+
+<Tabs>
+  <Tab title="JFK Sheet">
+    Airport flat-fare trips (RatecodeID = 2):
+
+    ```
+    year_month  day_type  services  distances    passengers
+    2022-01     1         45678     789456.78    56789
+    2022-01     2         38912     672345.67    48234
+    2022-02     1         43567     752891.23    54321
+    2022-02     2         36789     634567.89    45678
+    2022-03     1         47891     827345.12    59678
+    2022-03     2         40123     692834.56    49876
+    ```
+
+    **Typical patterns**:
+    - Average distance: ~17 miles per trip
+    - Higher weekend passenger counts (leisure travel)
+    - Seasonal peaks during holidays
+  </Tab>
+
+  <Tab title="Regular Sheet">
+    Standard metered trips (RatecodeID = 1):
+
+    ```
+    year_month  day_type  services   distances    passengers
+    2022-01     1         2456789    8456234.56   3245678
+    2022-01     2         876543     2987654.32   1156789
+    2022-02     1         2389456    8234567.89   3189456
+    2022-02     2         845678     2876543.21   1123456
+    2022-03     1         2567891    8678945.67   3378912
+    2022-03     2         912345     3123456.78   1201234
+    ```
+
+    **Typical patterns**:
+    - Average distance: ~3.4 miles per trip
+    - Weekday services 2.5-3x higher than weekends
+    - Largest volume category (~85% of all trips)
+  </Tab>
+
+  <Tab title="Others Sheet">
+    All other rate codes (Newark, Nassau, negotiated, etc.):
+
+    ```
+    year_month  day_type  services  distances    passengers
+    2022-01     1         12345     234567.89    15678
+    2022-01     2         8901      167890.12    11234
+    2022-02     1         11678     221234.56    14890
+    2022-02     2         8456      159876.34    10678
+    2022-03     1         13012     245678.91    16234
+    2022-03     2         9234      173456.78    11678
+    ```
+
+    **Typical patterns**:
+    - Average distance: ~19 miles per trip (longest trips)
+    - Smaller volume but higher per-trip revenue
+    - More common on weekdays
+  </Tab>
+</Tabs>
+
+### Reading the Excel File
+
+<Tabs>
+  <Tab title="Python (pandas)">
+    ```python
+    import pandas as pd
+
+    # Read all sheets
+    jfk_df = pd.read_excel('processed_data.xlsx', sheet_name='JFK')
+    regular_df = pd.read_excel('processed_data.xlsx', sheet_name='Regular')
+    other_df = pd.read_excel('processed_data.xlsx', sheet_name='Others')
+
+    # Or read all sheets at once
+    all_sheets = pd.read_excel('processed_data.xlsx', sheet_name=None)
+
+    # Access individual sheets
+    jfk_df = all_sheets['JFK']
+    regular_df = all_sheets['Regular']
+    other_df = all_sheets['Others']
+    ```
+  </Tab>
+
+  <Tab title="Excel">
+    1. Open `processed_data.xlsx` in Excel
+    2. Use sheet tabs at the bottom to navigate between JFK, Regular, and Others
+    3. Apply filters to analyze specific months or day types
+    4. Create pivot tables for custom aggregations
+  </Tab>
+
+  <Tab title="Python (openpyxl)">
+    ```python
+    from openpyxl import load_workbook
+
+    # Load workbook
+    wb = load_workbook('processed_data.xlsx')
+
+    # Access sheets
+    jfk_sheet = wb['JFK']
+    regular_sheet = wb['Regular']
+    other_sheet = wb['Others']
+
+    # Read data
+    for row in regular_sheet.iter_rows(min_row=2, values_only=True):
+        year_month, day_type, services, distances, passengers = row
+        print(f"{year_month}: {services:,} services")
+    ```
+  </Tab>
+</Tabs>
+
+## File Locations
+
+Both files are created in the **current working directory** where the script is executed:
+
+```bash
+.
+├── main.py
+├── processed_data.csv    # Created by export_csv_data()
+└── processed_data.xlsx   # Created by export_excel_data()
+```
+
+<Tip>
+  If you run the script multiple times, the export files will be overwritten. Consider adding timestamps to filenames for versioning:
+  
+  ```python
+  import datetime
+  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+  self.csv_df.to_csv(f'processed_data_{timestamp}.csv', sep='|', index=False)
+  ```
+</Tip>
+
+## Common Use Cases
+
+### Time Series Analysis (CSV)
+
+Best for analyzing trends over time:
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('processed_data.csv', sep='|')
+
+# Plot weekly service trends
+plt.figure(figsize=(12, 6))
+plt.plot(df['year_week'], df['total_services'], marker='o')
+plt.xlabel('Week')
+plt.ylabel('Total Services')
+plt.title('Weekly Taxi Services Trend')
+plt.xticks(rotation=45)
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+### Rate Code Comparison (Excel)
+
+Best for comparing service patterns across rate codes:
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load all sheets
+jfk_df = pd.read_excel('processed_data.xlsx', sheet_name='JFK')
+regular_df = pd.read_excel('processed_data.xlsx', sheet_name='Regular')
+other_df = pd.read_excel('processed_data.xlsx', sheet_name='Others')
+
+# Calculate totals
+totals = {
+    'JFK': jfk_df['services'].sum(),
+    'Regular': regular_df['services'].sum(),
+    'Other': other_df['services'].sum()
+}
+
+# Create pie chart
+plt.figure(figsize=(10, 8))
+plt.pie(totals.values(), labels=totals.keys(), autopct='%1.1f%%', startangle=90)
+plt.title('Services Distribution by Rate Code')
+plt.show()
+```
+
+### Weekday vs Weekend Analysis (Excel)
+
+Best for understanding weekly patterns:
+
+```python
+import pandas as pd
+
+regular_df = pd.read_excel('processed_data.xlsx', sheet_name='Regular')
+
+# Split by day type
+weekday = regular_df[regular_df['day_type'] == 1]
+weekend = regular_df[regular_df['day_type'] == 2]
+
+# Calculate averages
+print("Weekday Averages:")
+print(f"  Services: {weekday['services'].mean():,.0f}")
+print(f"  Distance: {weekday['distances'].mean():,.2f} miles")
+print(f"  Passengers: {weekday['passengers'].mean():,.0f}")
+
+print("\nWeekend Averages:")
+print(f"  Services: {weekend['services'].mean():,.0f}")
+print(f"  Distance: {weekend['distances'].mean():,.2f} miles")
+print(f"  Passengers: {weekend['passengers'].mean():,.0f}")
+
+print(f"\nWeekday/Weekend Ratio: {weekday['services'].mean() / weekend['services'].mean():.2f}x")
+```
+
+### Revenue Estimation
+
+Combine data from both exports:
+
+```python
+import pandas as pd
+
+# Load weekly data for fare estimates
+weekly_df = pd.read_csv('processed_data.csv', sep='|')
+avg_fare = weekly_df['mean_trip_amount'].mean()
+
+# Load monthly data for service counts
+regular_df = pd.read_excel('processed_data.xlsx', sheet_name='Regular')
+jfk_df = pd.read_excel('processed_data.xlsx', sheet_name='JFK')
+
+# Estimate revenue
+regular_revenue = regular_df['services'].sum() * avg_fare
+jfk_revenue = jfk_df['services'].sum() * 52.00  # Flat fare
+
+total_revenue = regular_revenue + jfk_revenue
+print(f"Estimated Total Revenue: ${total_revenue:,.2f}")
+print(f"  Regular: ${regular_revenue:,.2f}")
+print(f"  JFK: ${jfk_revenue:,.2f}")
+```
+
+## Data Validation
+
+Verify export integrity:
+
+```python
+import pandas as pd
+
+# Check CSV
+csv_df = pd.read_csv('processed_data.csv', sep='|')
+print("CSV Export:")
+print(f"  Rows: {len(csv_df)}")
+print(f"  Columns: {len(csv_df.columns)}")
+print(f"  Missing values: {csv_df.isnull().sum().sum()}")
+print(f"  Date range: {csv_df['year_week'].min()} to {csv_df['year_week'].max()}")
+
+# Check Excel
+xl_file = pd.ExcelFile('processed_data.xlsx')
+print("\nExcel Export:")
+print(f"  Sheets: {xl_file.sheet_names}")
+for sheet in xl_file.sheet_names:
+    df = pd.read_excel(xl_file, sheet_name=sheet)
+    print(f"  {sheet}: {len(df)} rows, {df['services'].sum():,} total services")
+```
+
+## Best Practices
+
+<Tip>
+  **Choose the right format for your analysis**:
+  - Use **CSV** for time series analysis, trend detection, and automated processing
+  - Use **Excel** for category comparison, pivot tables, and business reporting
+</Tip>
+
+### File Management
+
+- Archive old exports before running new analyses
+- Use descriptive filenames with date ranges: `processed_data_2022Q1.csv`
+- Keep raw data separate from processed exports
+- Document any manual modifications to exported files
+
+### Performance Tips
+
+- CSV files are faster to read/write than Excel for large datasets
+- Use chunking for processing very large CSV files:
+  ```python
+  for chunk in pd.read_csv('processed_data.csv', sep='|', chunksize=1000):
+      # Process chunk
+      pass
+  ```
+- For Excel, specify `engine='openpyxl'` explicitly for better compatibility
+
+### Integration with BI Tools
+
+- **Tableau/Power BI**: Import CSV directly for automatic refresh capabilities
+- **Google Sheets**: Use Google Drive API to upload Excel files programmatically
+- **SQL Databases**: Load CSV data using bulk import:
+  ```sql
+  COPY weekly_metrics FROM 'processed_data.csv' 
+  DELIMITER '|' CSV HEADER;
+  ```
+
+## Next Steps
+
+- Review [Weekly Metrics](/guide/weekly-metrics) to understand CSV columns
+- Explore [Monthly Metrics](/guide/monthly-metrics) to understand Excel sheets
+- Return to the complete [Processing Data](/guide/processing-data) workflow

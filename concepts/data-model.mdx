@@ -1,0 +1,171 @@
+---
+title: "Data Model"
+description: "Understanding the NYC TLC Yellow Taxi trip data structure and schema"
+---
+
+## Overview
+
+The Yellow Taxi NYC Data Analytics project processes trip data from the NYC Taxi and Limousine Commission (TLC). The data is stored in Parquet format and contains detailed information about each taxi trip.
+
+## Data Source
+
+Trip data is downloaded from the NYC TLC public dataset:
+
+```python
+https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{YYYY-MM}.parquet
+```
+
+<Info>
+**Parquet Format Benefits**
+
+Parquet is a columnar storage format that offers:
+- Efficient compression (smaller file sizes)
+- Fast column-based queries
+- Built-in schema preservation
+- Better performance with pandas and PyArrow
+</Info>
+
+## Data Schema
+
+The application uses a subset of columns from the full TLC dataset. Here are the fields used in the analysis:
+
+### Core Fields
+
+<ParamField path="tpep_pickup_datetime" type="datetime" required>
+  The date and time when the taxi meter was engaged. Used as part of the multi-index.
+  
+  ```python
+  # Example: 2022-01-15 08:30:45
+  ```
+</ParamField>
+
+<ParamField path="tpep_dropoff_datetime" type="datetime" required>
+  The date and time when the taxi meter was disengaged. Used as part of the multi-index.
+  
+  ```python
+  # Example: 2022-01-15 08:52:10
+  ```
+</ParamField>
+
+<ParamField path="passenger_count" type="float" required>
+  The number of passengers in the vehicle. This is a driver-entered value.
+  
+  <Note>
+  Must be greater than 0 after data cleaning validation.
+  </Note>
+</ParamField>
+
+<ParamField path="trip_distance" type="float" required>
+  The elapsed trip distance in miles reported by the taximeter.
+  
+  <Note>
+  Must be greater than 0 to pass data validation.
+  </Note>
+</ParamField>
+
+<ParamField path="RatecodeID" type="float" required>
+  The final rate code in effect at the end of the trip. Used as part of the multi-index.
+  
+  **Rate Code Types:**
+  - `1` = Standard rate (Regular)
+  - `2` = JFK Airport
+  - Other values = Negotiated fare, Nassau/Westchester, Group ride, etc.
+</ParamField>
+
+<ParamField path="total_amount" type="float" required>
+  The total amount charged to passengers, including all fees and surcharges.
+  
+  <Note>
+  Valid range: $0 < total_amount ≤ $5,000
+  </Note>
+</ParamField>
+
+## Data Structure
+
+The data is loaded and indexed as follows:
+
+```python main.py:33-36
+self.data = self.data[['tpep_pickup_datetime', 'tpep_dropoff_datetime', 
+                       'passenger_count', 'trip_distance',
+                       'RatecodeID','total_amount']]
+self.data.set_index(['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'RatecodeID'],
+                    inplace=True, drop=False)
+```
+
+### Multi-Index Design
+
+The DataFrame uses a composite index consisting of:
+1. `tpep_pickup_datetime`
+2. `tpep_dropoff_datetime`
+3. `RatecodeID`
+
+This indexing strategy enables:
+- Efficient time-based queries
+- Quick lookups by rate code
+- Better duplicate detection
+
+## Rate Code Categories
+
+The application segments trips into three categories based on `RatecodeID`:
+
+<AccordionGroup>
+  <Accordion title="Regular (RatecodeID = 1)">
+    Standard metered trips within NYC. This represents the majority of yellow taxi trips.
+    
+    ```python main.py:109-110
+    if rate_code_id_dict[rc_id] in [1, 2]:
+        df = self.data[self.data['RatecodeID'] == rate_code_id_dict[rc_id]]
+    ```
+  </Accordion>
+  
+  <Accordion title="JFK Airport (RatecodeID = 2)">
+    Trips to/from John F. Kennedy International Airport using the flat-rate fare.
+    
+    These trips are analyzed separately due to their unique pricing structure and distance characteristics.
+  </Accordion>
+  
+  <Accordion title="Other (RatecodeID ≠ 1 or 2)">
+    All other rate codes including:
+    - Negotiated fares
+    - Nassau or Westchester counties
+    - Group rides
+    - Other special arrangements
+    
+    ```python main.py:111-112
+    else:
+        df = self.data[(self.data['RatecodeID'] != 1) & (self.data['RatecodeID'] != 2)]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Data Loading Process
+
+The `import_data()` method handles the data ingestion:
+
+```python main.py:24-36
+def import_data(self):
+    dataframes_list = [
+        pd.read_parquet(
+            path=url,
+            engine='pyarrow'
+        ) for url in self.urls_list
+    ]
+
+    self.data = pd.concat(dataframes_list, ignore_index=True)
+    self.data = self.data[['tpep_pickup_datetime', 'tpep_dropoff_datetime', 
+                           'passenger_count', 'trip_distance',
+                           'RatecodeID','total_amount']]
+    self.data.set_index(['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'RatecodeID'],
+                        inplace=True, drop=False)
+```
+
+<Info>
+**Performance Note**
+
+The application uses PyArrow as the Parquet engine for optimal read performance. Multiple monthly files are concatenated into a single DataFrame for analysis.
+</Info>
+
+## Next Steps
+
+- Learn about [Data Cleaning](/concepts/data-cleaning) rules and validation
+- Explore [Metrics](/concepts/metrics) calculation and aggregation

@@ -1,0 +1,285 @@
+---
+title: "Data Cleaning"
+description: "Comprehensive data validation and cleaning rules applied to Yellow Taxi trip data"
+---
+
+## Overview
+
+The `clean_data()` method applies a series of validation rules to ensure data quality and remove anomalies. Each rule addresses specific data quality issues found in real-world taxi trip data.
+
+## Cleaning Pipeline
+
+Data cleaning happens in a specific order to maximize efficiency and ensure logical consistency:
+
+```python main.py:39-63
+def clean_data(self):
+    self.data.drop_duplicates(inplace=True)
+    self.data.dropna(subset=['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'passenger_count'], inplace=True)
+
+    self.data = self.data[
+        (self.data['tpep_pickup_datetime'] >= self.start_date) &
+        (self.data['tpep_dropoff_datetime'] <= self.end_date)
+    ]
+
+    self.data = self.data[self.data['tpep_dropoff_datetime'] > self.data['tpep_pickup_datetime']]
+
+    self.data = self.data[
+        (self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']).dt.total_seconds() >= 60
+    ]
+
+    #100mph = 160km/h
+    self.data = self.data[
+        (self.data['trip_distance']) /
+        ((self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']).dt.total_seconds() / 3600) <= 100
+    ]
+
+    self.data = self.data[self.data['trip_distance'] > 0]
+    self.data = self.data[(self.data['total_amount'] > 0) & (self.data['total_amount'] <= 5000)]
+
+    self.data = self.data[self.data['passenger_count'] > 0]
+```
+
+## Validation Rules
+
+### 1. Duplicate Removal
+
+<AccordionGroup>
+  <Accordion title="Rule: Remove Duplicate Records">
+    ```python main.py:40
+    self.data.drop_duplicates(inplace=True)
+    ```
+    
+    **What it does:** Removes exact duplicate rows from the dataset.
+    
+    **Why it exists:** 
+    - Data may be accidentally recorded multiple times due to system errors
+    - Duplicates would inflate trip counts and revenue metrics
+    - Ensures each trip is counted exactly once in the analysis
+    
+    **Business Impact:** Prevents double-counting in revenue and service metrics.
+  </Accordion>
+</AccordionGroup>
+
+### 2. Null Value Handling
+
+<AccordionGroup>
+  <Accordion title="Rule: Remove Records with Missing Critical Fields">
+    ```python main.py:41
+    self.data.dropna(subset=['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'passenger_count'], inplace=True)
+    ```
+    
+    **What it does:** Removes rows where pickup time, dropoff time, or passenger count is null/missing.
+    
+    **Why it exists:**
+    - Pickup and dropoff times are essential for calculating trip duration
+    - Cannot compute time-based metrics without valid timestamps
+    - Passenger count is required for occupancy analysis
+    - These fields are fundamental to trip definition
+    
+    **Business Impact:** Ensures all trips have complete temporal and passenger data for accurate analysis.
+  </Accordion>
+</AccordionGroup>
+
+### 3. Date Range Filtering
+
+<AccordionGroup>
+  <Accordion title="Rule: Filter to Analysis Date Range">
+    ```python main.py:43-46
+    self.data = self.data[
+        (self.data['tpep_pickup_datetime'] >= self.start_date) &
+        (self.data['tpep_dropoff_datetime'] <= self.end_date)
+    ]
+    ```
+    
+    **What it does:** Keeps only trips that started and ended within the specified analysis period.
+    
+    **Why it exists:**
+    - Focuses analysis on the specific time period of interest
+    - Removes trips that span outside the analysis window
+    - Prevents edge cases where trips start before or end after the target period
+    - Ensures consistent temporal boundaries
+    
+    **Business Impact:** Creates clean, bounded datasets for period-specific analysis (e.g., Q1 2022).
+  </Accordion>
+</AccordionGroup>
+
+### 4. Time Logic Validation
+
+<AccordionGroup>
+  <Accordion title="Rule: Dropoff Must Be After Pickup">
+    ```python main.py:48
+    self.data = self.data[self.data['tpep_dropoff_datetime'] > self.data['tpep_pickup_datetime']]
+    ```
+    
+    **What it does:** Removes trips where dropoff time is before or equal to pickup time.
+    
+    **Why it exists:**
+    - Basic logical constraint: trips cannot end before they start
+    - Indicates data entry errors or system clock issues
+    - Zero-duration trips (pickup == dropoff) are not valid trips
+    - Prevents negative trip durations
+    
+    **Business Impact:** Ensures temporal consistency and removes illogical records.
+  </Accordion>
+</AccordionGroup>
+
+### 5. Minimum Trip Duration
+
+<AccordionGroup>
+  <Accordion title="Rule: Trip Must Last At Least 60 Seconds">
+    ```python main.py:50-52
+    self.data = self.data[
+        (self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']).dt.total_seconds() >= 60
+    ]
+    ```
+    
+    **What it does:** Removes trips shorter than 60 seconds (1 minute).
+    
+    **Why it exists:**
+    - Extremely short trips are likely meter activation errors
+    - Passenger changed their mind immediately after meter started
+    - System test records or false starts
+    - Real taxi trips require time to travel even short distances
+    - Prevents skewing of average trip time metrics
+    
+    **Business Impact:** Removes invalid "trips" that don't represent actual service delivery.
+  </Accordion>
+</AccordionGroup>
+
+### 6. Maximum Speed Validation
+
+<AccordionGroup>
+  <Accordion title="Rule: Average Speed Must Not Exceed 100 mph">
+    ```python main.py:54-58
+    # 100mph = 160km/h
+    self.data = self.data[
+        (self.data['trip_distance']) /
+        ((self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']).dt.total_seconds() / 3600) <= 100
+    ]
+    ```
+    
+    **What it does:** Calculates average trip speed and removes trips exceeding 100 mph (160 km/h).
+    
+    **Formula:**
+    ```
+    speed (mph) = trip_distance (miles) / (trip_duration (seconds) / 3600)
+    ```
+    
+    **Why it exists:**
+    - NYC speed limits make 100+ mph sustained speeds physically impossible
+    - Indicates odometer errors or incorrect time recording
+    - Data entry mistakes (wrong distance or duration)
+    - GPS/meter calibration issues
+    - Protects against extreme outliers
+    
+    **Business Impact:** Ensures realistic trip characteristics and prevents outliers from skewing distance/time analysis.
+    
+    <Note>
+    This checks **average** speed over the entire trip, not instantaneous speed. Even highway trips in NYC rarely average above 50 mph due to traffic.
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+### 7. Distance Validation
+
+<AccordionGroup>
+  <Accordion title="Rule: Trip Distance Must Be Greater Than Zero">
+    ```python main.py:60
+    self.data = self.data[self.data['trip_distance'] > 0]
+    ```
+    
+    **What it does:** Removes trips with zero or negative distance.
+    
+    **Why it exists:**
+    - Zero-distance trips represent meter errors or cancelled trips
+    - Negative distances are data errors (impossible)
+    - All valid trips must cover some distance
+    - Prevents division-by-zero errors in speed calculations
+    - Ensures meaningful distance-based metrics
+    
+    **Business Impact:** Guarantees all trips represent actual travel with measurable distance.
+  </Accordion>
+</AccordionGroup>
+
+### 8. Fare Amount Validation
+
+<AccordionGroup>
+  <Accordion title="Rule: Total Amount Must Be Between $0 and $5,000">
+    ```python main.py:61
+    self.data = self.data[(self.data['total_amount'] > 0) & (self.data['total_amount'] <= 5000)]
+    ```
+    
+    **What it does:** Removes trips with zero, negative, or extremely high fares (> $5,000).
+    
+    **Why it exists:**
+    
+    **Lower bound (> $0):**
+    - All trips have minimum charges (base fare + surcharges)
+    - Zero fares indicate cancelled trips or data errors
+    - Negative amounts suggest refunds or system errors
+    
+    **Upper bound (≤ $5,000):**
+    - Typical NYC taxi trips range from $10-$100
+    - Even long-distance trips rarely exceed $500
+    - $5,000+ suggests data entry errors (extra zeros, decimal errors)
+    - Prevents extreme outliers from skewing revenue analysis
+    
+    **Business Impact:** Ensures fare amounts are realistic and suitable for statistical analysis.
+    
+    <Info>
+    The $5,000 threshold is intentionally conservative to catch obvious errors while allowing for legitimate high-value trips (e.g., airport runs with multiple passengers and tolls).
+    </Info>
+  </Accordion>
+</AccordionGroup>
+
+### 9. Passenger Count Validation
+
+<AccordionGroup>
+  <Accordion title="Rule: Passenger Count Must Be Greater Than Zero">
+    ```python main.py:63
+    self.data = self.data[self.data['passenger_count'] > 0]
+    ```
+    
+    **What it does:** Removes trips with zero or negative passenger count.
+    
+    **Why it exists:**
+    - Taxis cannot operate without at least one passenger
+    - Zero passengers indicates:
+      - Driver forgot to enter passenger count
+      - System default value not updated
+      - Cancelled trip still recorded
+    - Negative values are data errors
+    - Required for passenger volume and occupancy analysis
+    
+    **Business Impact:** Ensures all trips represent actual passenger service.
+    
+    <Note>
+    The TLC dataset allows passenger counts up to 6+ (the typical taxi capacity). No upper bound is enforced in this cleaning step.
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+## Data Quality Impact
+
+Applying these rules typically removes:
+- 5-15% of raw records (varies by month)
+- Duplicate and null entries
+- System errors and test records
+- Fraudulent or anomalous trips
+
+<Info>
+**Cleaning Order Matters**
+
+Rules are applied in a specific sequence:
+1. Remove duplicates and nulls first (reduces dataset size)
+2. Apply temporal filters (date range, time logic)
+3. Apply computed validations (duration, speed)
+4. Apply value range checks (distance, amount, passengers)
+
+This order maximizes efficiency by reducing the dataset before expensive calculations.
+</Info>
+
+## Next Steps
+
+- Understand the [Data Model](/concepts/data-model) structure
+- Learn about [Metrics](/concepts/metrics) calculated from cleaned data

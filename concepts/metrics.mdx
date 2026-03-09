@@ -1,0 +1,365 @@
+---
+title: "Metrics"
+description: "Understanding the weekly and monthly aggregation metrics calculated from Yellow Taxi trip data"
+---
+
+## Overview
+
+The application generates two types of metrics reports:
+1. **Weekly Metrics** - Aggregated trip statistics by week
+2. **Monthly Metrics by Rate Code** - Service volumes by month, rate code, and day type
+
+## Weekly Metrics
+
+Weekly metrics provide time-series analysis of trip characteristics aggregated by ISO week.
+
+### Implementation
+
+```python main.py:74-94
+def generate_week_metrics(self):
+    self.data['trip_time'] = self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']
+    self.data['trip_time_in_seconds'] = self.data['trip_time'].dt.total_seconds()
+
+    self.csv_df = self.data.groupby('year_week').agg(
+        min_trip_time=('trip_time_in_seconds', 'min'),
+        max_trip_time=('trip_time_in_seconds', 'max'),
+        mean_trip_time=('trip_time_in_seconds', 'mean'),
+        min_trip_distance=('trip_distance', 'min'),
+        max_trip_distance=('trip_distance', 'max'),
+        mean_trip_distance=('trip_distance', 'mean'),
+        min_trip_amount=('total_amount', 'min'),
+        max_trip_amount=('total_amount', 'max'),
+        mean_trip_amount=('total_amount', 'mean'),
+        total_services=('total_amount', 'count')
+    ).reset_index()
+
+    self.csv_df['percentage_variation'] = (
+        self.csv_df['total_services'] - self.csv_df['total_services'].shift(1)
+        ) / self.csv_df['total_services'].shift(1) * 100
+```
+
+### Calculated Fields
+
+<AccordionGroup>
+  <Accordion title="Trip Time Metrics">
+    **Derived Column:**
+    ```python main.py:75-76
+    self.data['trip_time'] = self.data['tpep_dropoff_datetime'] - self.data['tpep_pickup_datetime']
+    self.data['trip_time_in_seconds'] = self.data['trip_time'].dt.total_seconds()
+    ```
+    
+    **Aggregations:**
+    - `min_trip_time` - Shortest trip duration in the week (seconds)
+    - `max_trip_time` - Longest trip duration in the week (seconds)
+    - `mean_trip_time` - Average trip duration for the week (seconds)
+    
+    **Use Case:** Analyze traffic patterns, identify rush hour impacts, detect service quality trends.
+  </Accordion>
+  
+  <Accordion title="Trip Distance Metrics">
+    **Source Column:** `trip_distance` (miles)
+    
+    **Aggregations:**
+    - `min_trip_distance` - Shortest trip distance in the week
+    - `max_trip_distance` - Longest trip distance in the week
+    - `mean_trip_distance` - Average trip distance for the week
+    
+    **Use Case:** Track average trip lengths, identify long-haul vs. short-trip patterns, analyze service area coverage.
+  </Accordion>
+  
+  <Accordion title="Trip Amount Metrics">
+    **Source Column:** `total_amount` (USD)
+    
+    **Aggregations:**
+    - `min_trip_amount` - Lowest fare in the week
+    - `max_trip_amount` - Highest fare in the week
+    - `mean_trip_amount` - Average fare for the week
+    
+    **Use Case:** Monitor revenue trends, detect pricing anomalies, analyze fare patterns.
+  </Accordion>
+  
+  <Accordion title="Service Volume">
+    **Aggregation:**
+    - `total_services` - Total number of trips completed in the week
+    
+    ```python main.py:88
+    total_services=('total_amount', 'count')
+    ```
+    
+    **Use Case:** Track demand trends, measure service capacity utilization, identify growth patterns.
+    
+    <Note>
+    Uses `count` aggregation on `total_amount` column (any non-null column would work since data is already cleaned).
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+### Percentage Variation
+
+The week-over-week change in service volume:
+
+```python main.py:91-93
+self.csv_df['percentage_variation'] = (
+    self.csv_df['total_services'] - self.csv_df['total_services'].shift(1)
+    ) / self.csv_df['total_services'].shift(1) * 100
+```
+
+**Formula:**
+```
+percentage_variation = ((current_week_services - previous_week_services) / previous_week_services) × 100
+```
+
+**Example:**
+- Week 1: 10,000 trips
+- Week 2: 10,500 trips
+- Percentage variation = ((10,500 - 10,000) / 10,000) × 100 = **+5%**
+
+<Info>
+**Interpretation**
+- Positive values indicate growth in service volume
+- Negative values indicate decline in service volume
+- First week will have NaN (no previous week to compare)
+</Info>
+
+### Grouping Key: year_week
+
+Trips are grouped by ISO week format:
+
+```python main.py:69-70
+self.data['year_dt'] = self.data['tpep_dropoff_datetime'].dt.year.astype(str)
+self.data['week_dt'] = self.data['tpep_dropoff_datetime'].dt.isocalendar().week.astype(str).str.zfill(3)
+self.data['year_week'] = self.data['year_dt'].str.cat(self.data['week_dt'], sep='-')
+```
+
+**Format:** `YYYY-WWW` (e.g., `2022-012` for week 12 of 2022)
+
+<Note>
+Week numbers are zero-padded to 3 digits for consistent sorting.
+</Note>
+
+### Output Format
+
+Exported to `processed_data.csv` with pipe delimiter:
+
+```python main.py:135
+self.csv_df.to_csv('processed_data.csv', sep='|', index=False)
+```
+
+**Sample Output:**
+```
+year_week|min_trip_time|max_trip_time|mean_trip_time|min_trip_distance|max_trip_distance|mean_trip_distance|min_trip_amount|max_trip_amount|mean_trip_amount|total_services|percentage_variation
+2022-001|60.00|5832.00|892.45|0.01|38.50|3.12|0.50|287.80|18.34|45623|
+2022-002|60.00|6012.00|901.23|0.01|42.30|3.18|0.50|312.50|18.72|47891|4.97
+```
+
+## Monthly Metrics by Rate Code
+
+Monthly metrics segment trips by rate code type and day type (weekday vs. weekend).
+
+### Implementation
+
+```python main.py:96-123
+def generate_month_metrics(self):
+    rate_code_id_dict = {
+        'regular_df': 1,
+        'jfk_df': 2,
+        'other_df': -1
+    }
+
+    self.data['day_type'] = np.where(self.data['tpep_dropoff_datetime'].dt.dayofweek >= 5, 2, 1)
+    self.data['RatecodeID'] = self.data['RatecodeID'].astype(int)
+
+    for rc_id in rate_code_id_dict.keys():
+        attr = getattr(self, rc_id)
+
+        if rate_code_id_dict[rc_id] in [1, 2]:
+            df = self.data[self.data['RatecodeID'] == rate_code_id_dict[rc_id]]
+        else:
+            df = self.data[(self.data['RatecodeID'] != 1) & (self.data['RatecodeID'] != 2)]
+
+        df = df[['year_month', 'day_type', 'trip_distance', 'passenger_count']]
+
+        df = df.groupby(['year_month', 'day_type']).agg(
+            services=('trip_distance', 'count'),
+            distances=('trip_distance', 'sum'),
+            passengers=('passenger_count', 'sum')
+        ).reset_index()
+
+        attr = pd.concat([attr, df])
+        setattr(self, rc_id, attr)
+```
+
+### Day Type Classification
+
+```python main.py:103
+self.data['day_type'] = np.where(self.data['tpep_dropoff_datetime'].dt.dayofweek >= 5, 2, 1)
+```
+
+**Day Type Values:**
+- `1` = **Weekday** (Monday through Friday)
+- `2` = **Weekend** (Saturday and Sunday)
+
+**Logic:**
+- `dayofweek >= 5` means Saturday (5) or Sunday (6)
+- `dayofweek < 5` means Monday (0) through Friday (4)
+
+<Info>
+**Why Segment by Day Type?**
+
+Weekday and weekend trips have different characteristics:
+- Weekdays: More commuter/business trips, rush hour patterns
+- Weekends: More leisure/tourist trips, different time distributions
+</Info>
+
+### Rate Code Segmentation
+
+Three separate DataFrames are created:
+
+<AccordionGroup>
+  <Accordion title="Regular (RatecodeID = 1)">
+    ```python main.py:109-110
+    if rate_code_id_dict[rc_id] in [1, 2]:
+        df = self.data[self.data['RatecodeID'] == rate_code_id_dict[rc_id]]
+    ```
+    
+    **Stored in:** `self.regular_df`
+    
+    Standard metered trips - the majority of yellow taxi services.
+  </Accordion>
+  
+  <Accordion title="JFK Airport (RatecodeID = 2)">
+    ```python main.py:109-110
+    if rate_code_id_dict[rc_id] in [1, 2]:
+        df = self.data[self.data['RatecodeID'] == rate_code_id_dict[rc_id]]
+    ```
+    
+    **Stored in:** `self.jfk_df`
+    
+    JFK airport flat-rate trips - analyzed separately due to unique pricing and distance patterns.
+  </Accordion>
+  
+  <Accordion title="Other (RatecodeID ≠ 1 and ≠ 2)">
+    ```python main.py:111-112
+    else:
+        df = self.data[(self.data['RatecodeID'] != 1) & (self.data['RatecodeID'] != 2)]
+    ```
+    
+    **Stored in:** `self.other_df`
+    
+    All other rate codes: negotiated fares, Nassau/Westchester, group rides, etc.
+  </Accordion>
+</AccordionGroup>
+
+### Aggregated Metrics
+
+For each rate code segment, trips are grouped by `[year_month, day_type]`:
+
+```python main.py:116-120
+df = df.groupby(['year_month', 'day_type']).agg(
+    services=('trip_distance', 'count'),
+    distances=('trip_distance', 'sum'),
+    passengers=('passenger_count', 'sum')
+).reset_index()
+```
+
+**Metrics:**
+
+<ParamField path="services" type="int">
+  Total number of trips for the month/day_type combination.
+  
+  Uses `count` on trip_distance (any non-null column works).
+</ParamField>
+
+<ParamField path="distances" type="float">
+  Total miles traveled for all trips in the month/day_type combination.
+  
+  Sum of all trip_distance values.
+</ParamField>
+
+<ParamField path="passengers" type="int">
+  Total passengers served for all trips in the month/day_type combination.
+  
+  Sum of all passenger_count values.
+</ParamField>
+
+### Grouping Keys
+
+**year_month:**
+```python main.py:67
+self.data['year_month'] = self.data['tpep_dropoff_datetime'].dt.strftime('%Y-%m')
+```
+Format: `YYYY-MM` (e.g., `2022-01`)
+
+**day_type:**
+- `1` = Weekday
+- `2` = Weekend
+
+### Output Format
+
+Exported to Excel with separate sheets:
+
+```python main.py:138-143
+common_columns = ['year_month', 'day_type', 'services', 'distances', 'passengers']
+with pd.ExcelWriter("processed_data.xlsx", engine="openpyxl") as writer:
+    self.jfk_df[common_columns].to_excel(writer, sheet_name="JFK", index=False)
+    self.regular_df[common_columns].to_excel(writer, sheet_name="Regular", index=False)
+    self.other_df[common_columns].to_excel(writer, sheet_name="Others", index=False)
+```
+
+**File:** `processed_data.xlsx`
+
+**Sheets:**
+- `JFK` - JFK airport trips
+- `Regular` - Standard rate trips
+- `Others` - All other rate codes
+
+**Sample Output (Regular sheet):**
+```
+year_month | day_type | services | distances | passengers
+2022-01    | 1        | 234567   | 731234.56 | 289012
+2022-01    | 2        | 98234    | 312456.78 | 121345
+2022-02    | 1        | 241890   | 755432.10 | 298765
+2022-02    | 2        | 101234   | 321098.45 | 125678
+```
+
+## Data Formatting
+
+Before export, metrics are formatted:
+
+```python main.py:126-131
+def format_data(self):
+    self.csv_df = self.csv_df.round(2)
+
+    self.jfk_df = self.jfk_df.reset_index()
+    self.regular_df = self.regular_df.reset_index()
+    self.other_df = self.other_df.reset_index()
+```
+
+- Weekly metrics rounded to 2 decimal places
+- Monthly metrics indexes reset for clean export
+
+## Analysis Use Cases
+
+### Weekly Metrics
+- Trend analysis over time
+- Week-over-week growth tracking
+- Seasonal pattern detection
+- Service quality monitoring (avg duration/distance/fare)
+
+### Monthly Metrics
+- Rate code performance comparison
+- Weekday vs. weekend demand analysis
+- Passenger volume trends
+- Distance-based service characterization
+- Revenue segment analysis
+
+<Info>
+**Combining Both Metrics**
+
+Weekly metrics provide granular time-series data, while monthly metrics offer segmented business intelligence. Together, they enable comprehensive operational and strategic analysis.
+</Info>
+
+## Next Steps
+
+- Learn about the [Data Model](/concepts/data-model) structure
+- Review [Data Cleaning](/concepts/data-cleaning) rules applied before metrics calculation

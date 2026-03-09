@@ -1,0 +1,226 @@
+---
+title: Testing
+description: Test suite and CI/CD configuration for the Yellow Taxi NYC Data Analytics project
+---
+
+## Testing Framework
+
+This project uses **pytest** as its testing framework. The test suite is located in `test_yellow_taxi_data.py` and provides validation for core data processing functionality.
+
+## Running Tests
+
+To run the test suite, execute the following command from the project root:
+
+```bash
+pytest
+```
+
+Make sure you have installed all dependencies first:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Test File Structure
+
+The test suite is organized using pytest fixtures and focused test functions:
+
+### Fixture Pattern
+
+The `taxi_data` fixture (test_yellow_taxi_data.py:6-10) provides a reusable test instance:
+
+```python
+@pytest.fixture
+def taxi_data():
+    data_instance = YellowTaxiData(start_date='2022-03-01', end_date='2022-03-31')
+    data_instance.data = pd.read_parquet('yellow_tripdata_2022-03.parquet')
+    return data_instance
+```
+
+This fixture:
+- Creates a `YellowTaxiData` instance for March 2022
+- Loads data from a **local parquet file** (not remote URL)
+- Returns the configured instance for use in tests
+- Automatically runs before each test function that uses it
+
+<Info>
+  **Local vs Remote Data**: Tests use local parquet files to avoid network dependencies and ensure fast, reliable test execution. The production code uses remote URLs from the AWS CloudFront CDN.
+</Info>
+
+## Test Functions
+
+### test_import_data
+
+Validates that the data import process works correctly:
+
+```python
+def test_import_data(taxi_data):
+    taxi_data.import_data()
+    assert not taxi_data.data.empty
+```
+
+**What it tests:**
+- Data can be imported successfully
+- The resulting DataFrame is not empty
+- The import method completes without errors
+
+### test_clean_data
+
+Verifies that the data cleaning process reduces or maintains the dataset size:
+
+```python
+def test_clean_data(taxi_data):
+    initial_len = taxi_data.data.shape[0]
+    taxi_data.clean_data()
+    assert len(taxi_data.data) <= initial_len
+```
+
+**What it tests:**
+- Cleaning removes invalid records (or keeps the same count)
+- No records are accidentally added during cleaning
+- The cleaning method completes without errors
+
+**Cleaning operations** include:
+- Removing duplicates
+- Dropping rows with missing critical fields
+- Filtering trips outside the date range
+- Removing trips with invalid durations (&lt;60 seconds)
+- Filtering trips with unrealistic speeds (&gt;100 mph)
+- Removing trips with invalid distances or amounts
+
+## CI/CD Setup
+
+<Info>
+  The project uses **GitHub Actions** for continuous integration. Tests run automatically on every push to `main` and on all pull requests.
+</Info>
+
+### Workflow Configuration
+
+The workflow is defined in `.github/workflows/python-tests.yml`:
+
+```yaml
+name: Python Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run pytest
+      run: pytest
+```
+
+**Key features:**
+- Runs on Ubuntu 22.04
+- Uses Python 3.9
+- Automatically installs dependencies
+- Executes the full test suite
+
+## Writing New Tests
+
+<Tip>
+  Follow these guidelines when adding new tests to the suite:
+</Tip>
+
+### 1. Use the Existing Fixture
+
+Leverage the `taxi_data` fixture for consistency:
+
+```python
+def test_new_feature(taxi_data):
+    # Your test code here
+    pass
+```
+
+### 2. Test One Thing Per Function
+
+Keep tests focused and atomic:
+
+```python
+def test_add_more_columns(taxi_data):
+    taxi_data.add_more_columns()
+    assert 'year_month' in taxi_data.data.columns
+    assert 'year_week' in taxi_data.data.columns
+```
+
+### 3. Use Descriptive Names
+
+Name tests clearly to indicate what they validate:
+
+```python
+def test_week_metrics_calculates_percentage_variation(taxi_data):
+    # Test implementation
+    pass
+```
+
+### 4. Test Edge Cases
+
+Consider boundary conditions and error scenarios:
+
+```python
+def test_clean_data_removes_negative_passenger_counts(taxi_data):
+    # Add a row with negative passenger_count
+    # Run clean_data()
+    # Assert it was removed
+    pass
+```
+
+## Testing with Local vs Remote Data
+
+### Local Parquet Files (Tests)
+
+**Advantages:**
+- Fast execution (no network latency)
+- Deterministic results
+- Works offline
+- No external dependencies
+
+```python
+data_instance.data = pd.read_parquet('yellow_tripdata_2022-03.parquet')
+```
+
+### Remote URLs (Production)
+
+**Used in production** for accessing the latest data:
+
+```python
+url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2022-03.parquet'
+pd.read_parquet(path=url, engine='pyarrow')
+```
+
+<Info>
+  The test parquet files should be committed to the repository and kept in sync with the data structure expected by the production code.
+</Info>
+
+## Best Practices
+
+1. **Run tests before committing**: Always run `pytest` locally before pushing changes
+2. **Keep tests fast**: Use small sample datasets in local parquet files
+3. **Mock external dependencies**: Avoid network calls in unit tests
+4. **Test data quality**: Validate that cleaning operations work correctly
+5. **Add tests for bug fixes**: When fixing a bug, add a test to prevent regression
+
+## Next Steps
+
+For performance optimization of the code being tested, see [Performance](/development/performance).

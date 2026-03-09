@@ -1,0 +1,355 @@
+---
+title: "Installation"
+description: "Set up your environment for Yellow Taxi NYC Data Analytics"
+---
+
+# Installation
+
+This guide will walk you through setting up your development environment for processing NYC Yellow Taxi trip data.
+
+## System Requirements
+
+<CardGroup cols={2}>
+  <Card title="Python Version" icon="python">
+    Python 3.9 or higher
+  </Card>
+  <Card title="Memory" icon="memory">
+    4GB RAM minimum (8GB recommended)
+  </Card>
+  <Card title="Disk Space" icon="hard-drive">
+    500MB - 2GB free space
+  </Card>
+  <Card title="Network" icon="wifi">
+    Internet connection required
+  </Card>
+</CardGroup>
+
+<Note>
+The CI/CD pipeline uses Python 3.9 on Ubuntu 22.04. This is the tested and recommended version.
+</Note>
+
+## Step-by-Step Installation
+
+<Steps>
+  <Step title="Verify Python installation">
+    Check that you have Python 3.9 or higher installed:
+
+    ```bash
+    python3 --version
+    ```
+
+    Expected output:
+    ```
+    Python 3.9.x
+    ```
+
+    <Accordion title="Python not installed or wrong version?">
+      **macOS (using Homebrew):**
+      ```bash
+      brew install python@3.9
+      ```
+
+      **Ubuntu/Debian:**
+      ```bash
+      sudo apt update
+      sudo apt install python3.9 python3.9-venv python3.9-dev
+      ```
+
+      **Windows:**
+      Download from [python.org](https://www.python.org/downloads/) and install Python 3.9 or higher.
+    </Accordion>
+  </Step>
+
+  <Step title="Clone the repository">
+    Clone the project to your local machine:
+
+    ```bash
+    git clone <your-repository-url>
+    cd yellow-taxi-analytics
+    ```
+
+    Verify you're in the correct directory:
+
+    ```bash
+    ls -la
+    ```
+
+    You should see:
+    ```
+    main.py
+    requirements.txt
+    README.md
+    tests/
+    ```
+  </Step>
+
+  <Step title="Create virtual environment">
+    Create an isolated Python environment:
+
+    ```bash
+    python3 -m venv venv
+    ```
+
+    This creates a `venv/` directory containing the Python interpreter and package installation space.
+
+    <Tip>
+    Using a virtual environment prevents package conflicts with other Python projects on your system.
+    </Tip>
+  </Step>
+
+  <Step title="Activate virtual environment">
+    Activate the virtual environment:
+
+    <CodeGroup>
+      ```bash macOS/Linux
+      source venv/bin/activate
+      ```
+
+      ```bash Windows (Command Prompt)
+      venv\Scripts\activate.bat
+      ```
+
+      ```bash Windows (PowerShell)
+      venv\Scripts\Activate.ps1
+      ```
+    </CodeGroup>
+
+    Your terminal prompt should now show `(venv)` prefix:
+    ```
+    (venv) user@machine:~/yellow-taxi-analytics$
+    ```
+
+    <Warning>
+    You must activate the virtual environment every time you open a new terminal session before running the analysis.
+    </Warning>
+  </Step>
+
+  <Step title="Upgrade pip">
+    Ensure you have the latest version of pip:
+
+    ```bash
+    python -m pip install --upgrade pip
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required packages from `requirements.txt`:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    This installs the following key packages:
+
+    - **pandas 2.2.3** - Data manipulation and analysis
+    - **numpy 2.0.2** - Numerical computing
+    - **pyarrow 18.0.0** - Parquet file reading
+    - **openpyxl 3.1.5** - Excel file writing
+    - **pytest 8.3.3** - Testing framework (for development)
+
+    <Accordion title="Full dependency list">
+      The complete `requirements.txt` includes:
+
+      ```
+      pandas==2.2.3
+      numpy==2.0.2
+      pyarrow==18.0.0
+      openpyxl==3.1.5
+      pytest==8.3.3
+      python-dateutil==2.9.0.post0
+      pytz==2024.2
+      tzdata==2024.2
+      click==8.1.7
+      fsspec==2024.10.0
+      urllib3==2.2.3
+      certifi==2024.8.30
+      ```
+
+      Plus additional transitive dependencies for compatibility and testing.
+    </Accordion>
+  </Step>
+
+  <Step title="Verify installation">
+    Test that all packages are installed correctly:
+
+    ```bash
+    python -c "import pandas, numpy, pyarrow, openpyxl; print('All packages imported successfully!')"
+    ```
+
+    Expected output:
+    ```
+    All packages imported successfully!
+    ```
+
+    Run the test suite:
+
+    ```bash
+    pytest
+    ```
+
+    <Note>
+    The tests use sample `.parquet` files included in the repository and do not require internet connection.
+    </Note>
+  </Step>
+</Steps>
+
+## Post-Installation
+
+### Quick Test Run
+
+Verify everything works by running a quick analysis:
+
+```bash
+python main.py
+```
+
+You should see output starting with:
+```
+Init objects ...
+*** 0.005... seconds ***
+Importing data ...
+```
+
+### Deactivating the Virtual Environment
+
+When you're done working, deactivate the virtual environment:
+
+```bash
+deactivate
+```
+
+The `(venv)` prefix will disappear from your prompt.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="pip install fails with 'command not found'">
+    This usually means the virtual environment isn't activated. Run:
+
+    ```bash
+    source venv/bin/activate  # macOS/Linux
+    venv\Scripts\activate     # Windows
+    ```
+
+    Then try the pip install command again.
+  </Accordion>
+
+  <Accordion title="Permission denied when installing packages">
+    **Never use `sudo pip install`!** This can break your system Python.
+
+    Instead:
+    1. Make sure you're using a virtual environment
+    2. Activate it with `source venv/bin/activate`
+    3. Install packages normally with `pip install`
+  </Accordion>
+
+  <Accordion title="ImportError: cannot import name 'pyarrow' after installation">
+    PyArrow can have compatibility issues. Try:
+
+    ```bash
+    pip uninstall pyarrow
+    pip install pyarrow==18.0.0
+    ```
+
+    If issues persist on macOS:
+    ```bash
+    brew install apache-arrow
+    pip install pyarrow==18.0.0
+    ```
+  </Accordion>
+
+  <Accordion title="SSL certificate errors when downloading data">
+    If you see SSL errors during data import:
+
+    ```bash
+    pip install --upgrade certifi urllib3
+    ```
+
+    On macOS, you may also need to install certificates:
+    ```bash
+    /Applications/Python\ 3.9/Install\ Certificates.command
+    ```
+  </Accordion>
+
+  <Accordion title="Tests fail with 'file not found' errors">
+    Make sure you're running pytest from the project root directory:
+
+    ```bash
+    cd /path/to/yellow-taxi-analytics
+    pytest
+    ```
+
+    The test files expect sample `.parquet` files to be in the project directory.
+  </Accordion>
+
+  <Accordion title="Windows: 'cannot be loaded because running scripts is disabled'">
+    If you see this error when activating the virtual environment on Windows PowerShell:
+
+    ```powershell
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    ```
+
+    Then try activating again:
+    ```powershell
+    venv\Scripts\Activate.ps1
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Development Setup
+
+### Running Tests
+
+The project includes pytest-based tests:
+
+```bash
+pytest
+```
+
+Run tests with verbose output:
+
+```bash
+pytest -v
+```
+
+### Code Quality
+
+For development, consider installing additional tools:
+
+```bash
+pip install black flake8 mypy
+```
+
+- **black**: Code formatting
+- **flake8**: Linting
+- **mypy**: Type checking
+
+## Next Steps
+
+Now that you're set up:
+
+<CardGroup cols={2}>
+  <Card title="Run Your First Analysis" icon="rocket" href="/quickstart">
+    Follow the quickstart guide to process your first dataset
+  </Card>
+  <Card title="Understand the Architecture" icon="book" href="/introduction">
+    Learn about the data pipeline and capabilities
+  </Card>
+</CardGroup>
+
+## System-Specific Notes
+
+### macOS
+- Use Homebrew for Python installation
+- You may need Xcode Command Line Tools: `xcode-select --install`
+- Apple Silicon (M1/M2) users: All dependencies are compatible
+
+### Linux
+- Ubuntu 22.04 is the tested platform (same as CI/CD)
+- Install `python3.9-dev` for building some dependencies
+- Use `python3` and `pip3` explicitly if multiple Python versions are installed
+
+### Windows
+- Use Command Prompt or PowerShell (not Git Bash for activation)
+- Windows Terminal is recommended for better experience
+- Ensure Python was added to PATH during installation

@@ -1,97 +1,87 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Yellow Taxi NYC Data Analytics"
+description: "NYC Yellow Taxi data processing and analytics tool for generating trip metrics and insights from parquet files"
 ---
 
-## Setting up
+# Yellow Taxi NYC Data Analytics
 
-Get your documentation site up and running in minutes.
+Process and analyze NYC Yellow Taxi trip data with comprehensive metrics generation and multi-format export capabilities.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
+<CardGroup cols={2}>
   <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
   >
-    Edit your docs locally and preview them in real time.
+    Get up and running in minutes with your first data analysis
   </Card>
   <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
+    title="Installation Guide"
+    icon="download"
+    href="/installation"
   >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+    Set up your Python environment and install dependencies
   </Card>
   <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
+    title="Data Model"
+    icon="database"
+    href="/concepts/data-model"
   >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+    Understand the NYC taxi trip data structure
   </Card>
   <Card
-    title="Code samples"
+    title="API Reference"
     icon="code"
-    href="/essentials/code"
+    href="/api/yellow-taxi-data"
   >
-    Add sample code to demonstrate how to use your product.
+    Explore the complete YellowTaxiData API
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+</CardGroup>
 
-## Need inspiration?
+## Key Features
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={3}>
+  <Card title="Automated Import" icon="cloud-arrow-down">
+    Download and process parquet files directly from NYC TLC cloud storage
+  </Card>
+  <Card title="Data Cleaning" icon="broom">
+    Comprehensive validation with business rules for trip duration, distance, and speed
+  </Card>
+  <Card title="Weekly Metrics" icon="calendar-week">
+    Statistical analysis including min, max, mean for time, distance, and amount
+  </Card>
+  <Card title="Monthly Metrics" icon="calendar">
+    Aggregated metrics by rate code type (Regular, JFK, Other) and day type
+  </Card>
+  <Card title="Multi-Format Export" icon="file-export">
+    Export results to CSV and Excel with formatted sheets
+  </Card>
+  <Card title="High Performance" icon="gauge-high">
+    Optimized processing with pandas and pyarrow for millions of records
+  </Card>
+</CardGroup>
+
+## What You Can Do
+
+<Steps>
+  <Step title="Import NYC Yellow Taxi Data">
+    Automatically download trip data from the NYC TLC cloud for any date range in 2022
+  </Step>
+  <Step title="Clean and Validate">
+    Apply business rules to filter invalid trips based on duration, speed, distance, and amounts
+  </Step>
+  <Step title="Generate Insights">
+    Create weekly and monthly aggregated metrics with statistical analysis
+  </Step>
+  <Step title="Export Results">
+    Export processed data to CSV (pipe-delimited) and Excel with separate sheets by rate code
+  </Step>
+</Steps>
+
+## Use Cases
+
+- **Trip Analysis**: Analyze taxi trip patterns, durations, and distances across different time periods
+- **Revenue Insights**: Track total amounts, variation percentages, and service counts by week
+- **Rate Code Comparison**: Compare Regular vs JFK vs Other rate codes for weekday/weekend patterns
+- **Data Quality**: Clean and validate large datasets with customizable business rules
+- **Reporting**: Generate formatted reports in CSV and Excel for stakeholder consumption

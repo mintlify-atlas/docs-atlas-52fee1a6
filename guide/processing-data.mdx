@@ -1,0 +1,230 @@
+---
+title: Processing Data
+description: Complete workflow for processing Yellow Taxi NYC data from initialization to export
+---
+
+## Overview
+
+The YellowTaxiData class provides a complete pipeline for processing NYC Yellow Taxi trip data. The workflow involves initializing the object with date ranges, importing raw data, cleaning, enriching with calculated columns, generating metrics, formatting, and exporting results.
+
+## Complete Workflow
+
+<Steps>
+  <Step title="Initialize YellowTaxiData">
+    Create an instance of the `YellowTaxiData` class with your desired date range:
+
+    ```python
+    from main import YellowTaxiData
+    import time
+
+    # Initialize with date range
+    yellow_taxi_data = YellowTaxiData(
+        start_date='2022-01-01', 
+        end_date='2022-03-31'
+    )
+    ```
+
+    The constructor automatically:
+    - Generates monthly date ranges between start and end dates
+    - Creates URLs for downloading parquet files from AWS CloudFront
+    - Initializes empty DataFrames for storing processed data
+  </Step>
+
+  <Step title="Import Data">
+    Download and concatenate parquet files from the NYC Taxi data source:
+
+    ```python
+    yellow_taxi_data.import_data()
+    ```
+
+    This method:
+    - Downloads parquet files for each month in your date range
+    - Filters to essential columns: `tpep_pickup_datetime`, `tpep_dropoff_datetime`, `passenger_count`, `trip_distance`, `RatecodeID`, `total_amount`
+    - Sets a multi-level index for efficient querying
+  </Step>
+
+  <Step title="Clean Data">
+    Remove invalid and outlier records:
+
+    ```python
+    yellow_taxi_data.clean_data()
+    ```
+
+    Cleaning operations include:
+    - Removing duplicate records
+    - Dropping rows with missing datetime or passenger count values
+    - Filtering trips within the specified date range
+    - Removing trips where dropoff is before pickup
+    - Filtering out trips shorter than 60 seconds
+    - Removing trips with average speeds over 100 mph (likely data errors)
+    - Filtering trips with distance > 0 and amount between $0-$5000
+    - Ensuring passenger count > 0
+  </Step>
+
+  <Step title="Add Calculated Columns">
+    Enrich the dataset with time-based grouping columns:
+
+    ```python
+    yellow_taxi_data.add_more_columns()
+    ```
+
+    New columns added:
+    - `year_month`: Format YYYY-MM for monthly grouping
+    - `year_week`: Format YYYY-WWW for weekly grouping
+    - `year_month_day`: Format YYYY-MM-DD for daily analysis
+  </Step>
+
+  <Step title="Generate Weekly Metrics">
+    Calculate aggregated statistics by week:
+
+    ```python
+    yellow_taxi_data.generate_week_metrics()
+    ```
+
+    Generates min/max/mean for trip time, distance, and amount, plus total services count and week-over-week percentage variation.
+
+    See [Weekly Metrics](/guide/weekly-metrics) for detailed information.
+  </Step>
+
+  <Step title="Generate Monthly Metrics">
+    Calculate metrics broken down by rate code and day type:
+
+    ```python
+    yellow_taxi_data.generate_month_metrics()
+    ```
+
+    Creates separate DataFrames for Regular, JFK, and Other rate codes with weekday/weekend breakdowns.
+
+    See [Monthly Metrics](/guide/monthly-metrics) for detailed information.
+  </Step>
+
+  <Step title="Format Results">
+    Prepare data for export:
+
+    ```python
+    yellow_taxi_data.format_data()
+    ```
+
+    This method:
+    - Rounds numeric values to 2 decimal places
+    - Resets indexes on monthly metric DataFrames
+  </Step>
+
+  <Step title="Export Results">
+    Save processed data to CSV and Excel files:
+
+    ```python
+    yellow_taxi_data.export_data()
+    ```
+
+    Generates:
+    - `processed_data.csv`: Weekly metrics (pipe-delimited)
+    - `processed_data.xlsx`: Monthly metrics across three sheets
+
+    See [Exporting Results](/guide/exporting-results) for detailed information.
+  </Step>
+</Steps>
+
+## Complete Example
+
+Here's the complete workflow as implemented in the main execution block:
+
+```python main.py
+import time
+from main import YellowTaxiData
+
+if __name__ == '__main__':
+    global_start_time = time.perf_counter()
+
+    print('Init objects ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data = YellowTaxiData(start_date='2022-01-01', end_date='2022-03-31')
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print('Importing data ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data.import_data()
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print('Cleaning data ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data.clean_data()
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print('Adding more columns ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data.add_more_columns()
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print('Generating week metrics ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data.generate_week_metrics()
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print('Generating month metrics ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data.generate_month_metrics()
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print('Formatting results ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data.format_data()
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print('Exporting results ...')
+    start_time = time.perf_counter()
+    yellow_taxi_data.export_data()
+    print(f"*** {time.perf_counter() - start_time} seconds ***")
+
+    print(f"Execution time: {time.perf_counter() - global_start_time} seconds")
+```
+
+## Performance Considerations
+
+<Tip>
+  The data import and cleaning steps are the most time-intensive operations. For 3 months of data (January-March 2022), expect:
+  - **Import**: 30-60 seconds depending on network speed
+  - **Cleaning**: 10-20 seconds
+  - **Total pipeline**: 60-120 seconds
+</Tip>
+
+### Memory Usage
+
+- Each month of data contains approximately 3-4 million trip records
+- For a 3-month date range, expect ~10-12 million records before cleaning
+- After cleaning, this typically reduces to ~8-10 million valid records
+- Recommended minimum RAM: 8GB for processing 3+ months of data
+
+## Customizing Date Ranges
+
+You can process any date range supported by the NYC Taxi dataset:
+
+```python
+# Single month
+yellow_taxi_data = YellowTaxiData(
+    start_date='2022-01-01',
+    end_date='2022-01-31'
+)
+
+# Full year
+yellow_taxi_data = YellowTaxiData(
+    start_date='2022-01-01',
+    end_date='2022-12-31'
+)
+
+# Multiple years
+yellow_taxi_data = YellowTaxiData(
+    start_date='2020-01-01',
+    end_date='2022-12-31'
+)
+```
+
+<Tip>
+  Start with a smaller date range (1-3 months) to test your setup before processing larger datasets.
+</Tip>
+
+## Next Steps
+
+- Learn about [Weekly Metrics](/guide/weekly-metrics) calculation
+- Understand [Monthly Metrics](/guide/monthly-metrics) by rate code
+- Explore [Exporting Results](/guide/exporting-results) formats

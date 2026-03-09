@@ -1,0 +1,72 @@
+{
+  "projectType": "data-platform",
+  "projectName": "Yellow Taxi NYC Data Analytics",
+  "projectDescription": "NYC Yellow Taxi data processing and analytics tool for generating trip metrics and insights from parquet files",
+  "theme": "sequoia",
+  "primaryColor": "#F7B731",
+  "lightColor": "#FDD835",
+  "darkColor": "#F57F17",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart",
+          "installation"
+        ]
+      },
+      {
+        "group": "Core Concepts",
+        "pages": [
+          "concepts/data-model",
+          "concepts/data-cleaning",
+          "concepts/metrics"
+        ]
+      },
+      {
+        "group": "User Guide",
+        "pages": [
+          "guide/processing-data",
+          "guide/weekly-metrics",
+          "guide/monthly-metrics",
+          "guide/exporting-results"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/yellow-taxi-data",
+          "api/data-methods",
+          "api/export-methods"
+        ]
+      },
+      {
+        "group": "Development",
+        "pages": [
+          "development/testing",
+          "development/performance"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Automated NYC Yellow Taxi trip data import from cloud storage",
+    "Comprehensive data cleaning and validation with business rules",
+    "Weekly trip metrics aggregation with statistical analysis",
+    "Monthly metrics by rate code type (Regular, JFK, Other)",
+    "Multi-format export capabilities (CSV and Excel)"
+  ],
+  "publicApiSurface": [
+    "YellowTaxiData.__init__(start_date, end_date)",
+    "YellowTaxiData.import_data()",
+    "YellowTaxiData.clean_data()",
+    "YellowTaxiData.add_more_columns()",
+    "YellowTaxiData.generate_week_metrics()",
+    "YellowTaxiData.generate_month_metrics()",
+    "YellowTaxiData.format_data()",
+    "YellowTaxiData.export_data()",
+    "YellowTaxiData.export_csv_data()",
+    "YellowTaxiData.export_excel_data()"
+  ]
+}
